@@ -1,5 +1,6 @@
 package meowing.zen.utils
 
+import meowing.zen.Zen
 import meowing.zen.Zen.Companion.mc
 import meowing.zen.api.DungeonsAPI
 import meowing.zen.events.EventBus
@@ -90,16 +91,12 @@ object DungeonUtils {
 
         EventBus.register<TickEvent.Client> {
             players.forEach { (player, info) ->
-                println("Checking player $players for a player entity")
                 val playerObj = mc.world?.players?.firstOrNull { it.name.string == player } ?: return@forEach
-                println("Has a player")
-
                 val uuid = playerObj.uuid.toString()
                 info.uuid = uuid
 
                 DungeonsAPI.fetchSecrets(uuid, cacheMs = 120_000) { secrets ->
                     info.intSecrets = secrets
-                    info.secrets = secrets
                 }
             }
         }
@@ -146,6 +143,11 @@ object DungeonUtils {
         val currentData = Data.getData()
         updater(currentData)
         Data.setData(currentData)
+    }
+
+    fun forceInit(){
+        // kiwi plz think of a better way to do this
+        Zen.LOGGER.debug("[DUTILS] Inilialized (Forced)")
     }
 
     // TODO: Use api for cata level and calc

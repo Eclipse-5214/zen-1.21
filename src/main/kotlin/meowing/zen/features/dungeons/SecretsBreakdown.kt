@@ -27,6 +27,8 @@ object SecretsBreakdown : Feature("secretsbreakdown", area = "catacombs") {
     }
 
     override fun initialize() {
+        DungeonUtils.forceInit()
+
         EventBus.register<ChatEvent.Receive> { event ->
             completeRegex.find(event.message.string.removeFormatting()) ?: return@register
 
