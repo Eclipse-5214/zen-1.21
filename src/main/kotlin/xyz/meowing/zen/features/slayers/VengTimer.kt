@@ -1,12 +1,10 @@
 package xyz.meowing.zen.features.slayers
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.*
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.hud.HUDManager
-import xyz.meowing.zen.config.ConfigManager
-import xyz.meowing.zen.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import xyz.meowing.zen.utils.Render2D
 import xyz.meowing.zen.utils.TickUtils
 import xyz.meowing.zen.utils.TimeUtils
@@ -17,28 +15,41 @@ import net.minecraft.entity.Entity
 import net.minecraft.entity.mob.BlazeEntity
 import xyz.meowing.knit.api.KnitClient.world
 import xyz.meowing.knit.api.KnitPlayer.player
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.EntityEvent
+import xyz.meowing.zen.events.core.GuiEvent
+import xyz.meowing.zen.events.core.SkyblockEvent
 import kotlin.time.Duration.Companion.seconds
 
-@Zen.Module
-object VengTimer : Feature("vengtimer", true) {
-    private var starttime = TimeUtils.zero
+@Module
+object VengTimer : Feature(
+    "vengTimer",
+    true
+) {
+    private const val NAME = "Vengeance Timer"
+    private var startTime = TimeUtils.zero
     private var hit = false
     private var isFighting = false
     private var cachedNametag: Entity? = null
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Vengeance proc timer", "Vengeance proc timer", "Slayers", ConfigElement(
-                "vengtimer",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Vengeance proc timer",
+                "Vengeance proc timer",
+                "Slayers",
+                ConfigElement(
+                    "vengTimer",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
     override fun initialize() {
-        HUDManager.register("vengtimer", "§bVeng proc: §c4.3s")
+        HUDManager.register(NAME, "§bVeng proc: §c4.3s")
 
-        createCustomEvent<RenderEvent.HUD>("render") {
-            if (HUDManager.isEnabled("VengTimer")) render(it.context)
+        createCustomEvent<GuiEvent.Render.HUD>("render") {
+            if (HUDManager.isEnabled(NAME)) render(it.context)
         }
 
         register<SkyblockEvent.Slayer.QuestStart> {
@@ -69,11 +80,11 @@ object VengTimer : Feature("vengtimer", true) {
             }?.also { cachedNametag = it }
 
             if (nametagEntity != null && event.target.id == (nametagEntity.id - 3)) {
-                starttime = 6.seconds.fromNow
+                startTime = 6.seconds.fromNow
                 hit = true
                 registerEvent("render")
                 TickUtils.schedule(119) {
-                    starttime = TimeUtils.zero
+                    startTime = TimeUtils.zero
                     hit = false
                     unregisterEvent("render")
                 }
@@ -85,16 +96,16 @@ object VengTimer : Feature("vengtimer", true) {
         val text = getDisplayText()
         if (text.isEmpty()) return
 
-        val x = HUDManager.getX("vengtimer")
-        val y = HUDManager.getY("vengtimer")
-        val scale = HUDManager.getScale("vengtimer")
+        val x = HUDManager.getX(NAME)
+        val y = HUDManager.getY(NAME)
+        val scale = HUDManager.getScale(NAME)
 
         Render2D.renderString(context, text, x, y, scale)
     }
 
     private fun getDisplayText(): String {
-        if (hit && starttime.isInFuture) {
-            val timeLeft = starttime.until
+        if (hit && startTime.isInFuture) {
+            val timeLeft = startTime.until
             return "§bVeng proc: §c${"%.1f".format(timeLeft)}s"
         }
         return ""
@@ -103,7 +114,7 @@ object VengTimer : Feature("vengtimer", true) {
     private fun cleanup() {
         isFighting = false
         cachedNametag = null
-        starttime = TimeUtils.zero
+        startTime = TimeUtils.zero
         unregisterEvent("render")
     }
 }

@@ -1,6 +1,7 @@
 package xyz.meowing.zen.features.general
 
-import com.google.gson.reflect.TypeToken
+import com.mojang.serialization.Codec
+import com.mojang.serialization.codecs.RecordCodecBuilder
 import gg.essential.elementa.ElementaVersion
 import gg.essential.elementa.UIComponent
 import gg.essential.elementa.WindowScreen
@@ -14,31 +15,35 @@ import gg.essential.elementa.constraints.CramSiblingConstraint
 import gg.essential.elementa.constraints.animation.Animations
 import gg.essential.elementa.dsl.*
 import gg.essential.universal.UKeyboard
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ConfigDelegate
-import xyz.meowing.zen.config.ui.constraint.ChildHeightConstraint
+import xyz.meowing.zen.ui.constraint.ChildHeightConstraint
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.GuiEvent
 import xyz.meowing.zen.features.Feature
-import xyz.meowing.zen.utils.DataUtils
 import xyz.meowing.zen.utils.ItemUtils.lore
 import xyz.meowing.zen.utils.ItemUtils.skyblockID
 import xyz.meowing.zen.utils.TickUtils
 import net.minecraft.item.ItemStack
 import xyz.meowing.knit.api.KnitChat
 import xyz.meowing.knit.api.KnitClient.client
-import xyz.meowing.zen.Zen.Companion.LOGGER
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.Zen.LOGGER
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.data.StoredFile
+import xyz.meowing.zen.events.core.GuiEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import java.awt.Color
 
 enum class FilterType { REGEX, EQUALS, CONTAINS }
 enum class InputType { ITEM_ID, DISPLAY_NAME, LORE }
 
-@Zen.Module
-object TrashHighlighter : Feature("trashhighlighter", true) {
-    private val highlightType by ConfigDelegate<Int>("trashhighlighttype")
-    private val color by ConfigDelegate<Color>("trashhighlightercolor")
+@Module
+object TrashHighlighter : Feature(
+    "trashHighlighter",
+    true
+) {
+    private val highlightColor by ConfigDelegate<Color>("trashHighlighter.color")
+    private val highlightType by ConfigDelegate<Int>("trashHighlighter.type")
+
     private val defaultList = listOf(
         FilteredItem("CRYPT_DREADLORD_SWORD", FilterType.EQUALS, InputType.ITEM_ID),
         FilteredItem("MACHINE_GUN_BOW", FilterType.EQUALS, InputType.ITEM_ID),
@@ -61,7 +66,9 @@ object TrashHighlighter : Feature("trashhighlighter", true) {
         FilteredItem("ZOMBIE_KNIGHT", FilterType.CONTAINS, InputType.ITEM_ID),
         FilteredItem("ENCHANTED_ROTTEN_FLESH", FilterType.CONTAINS, InputType.ITEM_ID)
     )
-    val trashFilters = DataUtils("trashFilters", defaultList.toMutableList(), object : TypeToken<MutableList<FilteredItem>>() {})
+
+    private val trashData = StoredFile("features/TrashHighlighter")
+    private var trashFilters: List<FilteredItem> by trashData.list("filters", FilteredItem.CODEC, defaultList)
 
     data class FilteredItem(
         var textInput: String,
@@ -81,30 +88,60 @@ object TrashHighlighter : Feature("trashhighlighter", true) {
                 FilterType.REGEX -> try { input.matches(textInput.toRegex()) } catch (_: Exception) { false }
             }
         }
+
+        companion object {
+            val CODEC: Codec<FilteredItem> = RecordCodecBuilder.create { instance ->
+                instance.group(
+                    Codec.STRING.fieldOf("textInput").forGetter { it.textInput },
+                    Codec.STRING.xmap(
+                        { FilterType.valueOf(it) },
+                        { it.name }
+                    ).fieldOf("selectedFilter").forGetter { it.selectedFilter },
+                    Codec.STRING.xmap(
+                        { InputType.valueOf(it) },
+                        { it.name }
+                    ).fieldOf("selectedInput").forGetter { it.selectedInput }
+                ).apply(instance, ::FilteredItem)
+            }
+        }
     }
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Trash Highlighter", "", "General", ConfigElement(
-                "trashhighlighter",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Highlight color", "Highlight color", "Color", ConfigElement(
-                "trashhighlightercolor",
-                ElementType.ColorPicker(Color(255, 0, 0, 127))
-            ))
-            .addFeatureOption("Highlight type", "Highlight type", "Type", ConfigElement(
-                "trashhighlighttype",
-                ElementType.Dropdown(listOf("Slot", "Border"), 0)
-            ))
-            .addFeatureOption("Trash Highlighter Filter GUI", "Trash Highlighter Filter GUI", "GUI", ConfigElement(
-                "trashhighlightguibutton",
-                ElementType.Button("Open Filter GUI") {
-                    TickUtils.schedule(2) {
-                        client.setScreen(TrashFilterGui())
+            .addFeature(
+                "Trash highlighter",
+                "Highlights the trash items",
+                "General",
+                ConfigElement(
+                    "trashHighlighter",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Highlight color",
+                ConfigElement(
+                    "trashHighlighter.color",
+                    ElementType.ColorPicker(Color(255, 0, 0, 127))
+                )
+            )
+            .addFeatureOption(
+                "Highlight type",
+                ConfigElement(
+                    "trashHighlighter.type",
+                    ElementType.Dropdown(listOf("Slot", "Border"), 0)
+                )
+            )
+            .addFeatureOption(
+                "Trash highlighter filter GUI",
+                ConfigElement(
+                    "trashHighlighter.guiButton",
+                    ElementType.Button("Open Filter GUI") {
+                        TickUtils.schedule(2) {
+                            client.setScreen(TrashFilterGui())
+                        }
                     }
-                }
-            ))
+                )
+            )
     }
 
     override fun initialize() {
@@ -116,7 +153,7 @@ object TrashHighlighter : Feature("trashhighlighter", true) {
             val y = event.slot.y
 
             if (stack.skyblockID.isNotEmpty() && isTrashItem(stack)) {
-                val highlightColor = color.rgb
+                val highlightColor = highlightColor.rgb
 
                 when (highlightType) {
                     0 -> context.fill(x, y, x + 16, y + 16, highlightColor)
@@ -133,7 +170,7 @@ object TrashHighlighter : Feature("trashhighlighter", true) {
 
     private fun safeGetFilters(): List<FilteredItem> {
         return try {
-            trashFilters.getData()
+            trashFilters
         } catch (e: Exception) {
             LOGGER.warn("Error in Trash Highlighter\$getFilter: $e")
             emptyList()
@@ -147,8 +184,12 @@ object TrashHighlighter : Feature("trashhighlighter", true) {
     }
 
     fun getFilters(): List<FilteredItem> = safeGetFilters()
-    fun setFilters(filters: List<FilteredItem>) = trashFilters.setData(filters.toMutableList())
-    fun resetToDefault() = trashFilters.setData(defaultList.toMutableList())
+    fun setFilters(filters: List<FilteredItem>) {
+        trashFilters = filters
+    }
+    fun resetToDefault() {
+        trashFilters = defaultList
+    }
 }
 
 class TrashHighlightText(
@@ -234,11 +275,6 @@ class TrashFilterGui : WindowScreen(ElementaVersion.V2, newGuiScale = 2) {
 
     init {
         buildGui()
-    }
-
-    override fun onScreenClose() {
-        super.onScreenClose()
-        TrashHighlighter.trashFilters.save()
     }
 
     private fun createBlock(radius: Float): UIRoundedRectangle = UIRoundedRectangle(radius)

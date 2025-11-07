@@ -1,39 +1,53 @@
 package xyz.meowing.zen.features.slayers
 
 import xyz.meowing.knit.api.KnitPlayer.player
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.api.EntityDetection.getSlayerEntity
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.skyblock.EntityDetection.getSlayerEntity
 import xyz.meowing.zen.config.ConfigDelegate
-import xyz.meowing.zen.config.ConfigManager
-import xyz.meowing.zen.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.RenderEvent
+import xyz.meowing.zen.events.core.RenderEvent
 import xyz.meowing.zen.features.Feature
-import xyz.meowing.zen.utils.Utils.toColorInt
+import xyz.meowing.zen.utils.glowThisFrame
+import xyz.meowing.zen.utils.glowingColor
 import java.awt.Color
 
-@Zen.Module
-object SlayerHighlight : Feature("slayerhighlight", true) {
+@Module
+object SlayerHighlight : Feature(
+    "slayerHighlight",
+    true
+) {
     private val slayerhighlightcolor by ConfigDelegate<Color>("slayerhighlightcolor")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Slayer highlight", "Slayer highlight", "Slayers", ConfigElement(
-                "slayerhighlight",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Color", "", "Options", ConfigElement(
-                "slayerhighlightcolor",
-                ElementType.ColorPicker(Color(0, 255, 255, 127))
-            ))
+            .addFeature(
+                "Slayer highlight",
+                "Slayer highlight",
+                "Slayers",
+                ConfigElement(
+                    "slayerHighlight",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Color",
+                ConfigElement(
+                    "slayerHighlight.color",
+                    ElementType.ColorPicker(Color(0, 255, 255, 127))
+                )
+            )
     }
 
 
     override fun initialize() {
-        register<RenderEvent.EntityGlow> { event ->
-            if (player?.canSee(event.entity) == true && event.entity == getSlayerEntity()) {
-                event.shouldGlow = true
-                event.glowColor = slayerhighlightcolor.toColorInt()
+        register<RenderEvent.Entity.Pre> { event ->
+            val entity = event.entity
+
+            if (player?.canSee(entity) == true && entity == getSlayerEntity()) {
+                entity.glowThisFrame = true
+                entity.glowingColor = slayerhighlightcolor.rgb
             }
         }
     }

@@ -1,15 +1,16 @@
 package xyz.meowing.zen.features.slayers.carrying
 
 import xyz.meowing.zen.Zen
-import xyz.meowing.zen.Zen.Companion.prefix
+import xyz.meowing.zen.Zen.prefix
 import xyz.meowing.zen.events.EventBus
-import xyz.meowing.zen.events.GuiEvent
 import xyz.meowing.zen.hud.HUDManager
 import xyz.meowing.zen.utils.Render2D
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.util.Colors
 import xyz.meowing.knit.api.KnitClient.client
+import xyz.meowing.knit.api.events.EventCall
 import xyz.meowing.knit.api.input.KnitMouse
+import xyz.meowing.zen.events.core.GuiEvent
 
 object CarryHUD {
     private data class Button(val x: Float, val y: Float, val width: Float, val height: Float, val action: String, val carryee: CarryCounter.Carryee, val tooltip: String)
@@ -19,20 +20,20 @@ object CarryHUD {
     private val renderItems = mutableListOf<RenderItem>()
     private var hoveredButton: Button? = null
     private var isRegistered = false
-    private var guiClickHandler: EventBus.EventCall? = null
-    private var guiDrawHandler: EventBus.EventCall? = null
-    private const val name = "CarryHud"
+    private var guiClickHandler: EventCall? = null
+    private var guiDrawHandler: EventCall? = null
+    private const val NAME = "CarryHud"
 
     fun initialize() {
-        HUDManager.register(name, "$prefix §f§lCarries:\n§7> §bPlayer1§f: §b5§f/§b10 §7(2.3s | 45/hr)\n§7> §bPlayer2§f: §b1§f/§b3 §7(15.7s | 32/hr)")
+        HUDManager.register(NAME, "$prefix §f§lCarries:\n§7> §bPlayer1§f: §b5§f/§b10 §7(2.3s | 45/hr)\n§7> §bPlayer2§f: §b1§f/§b3 §7(15.7s | 32/hr)")
     }
 
     fun renderHUD(context: DrawContext) {
-        if (CarryCounter.carryees.isEmpty() || Zen.isInInventory || !HUDManager.isEnabled(name)) return
+        if (CarryCounter.carries.isEmpty() || Zen.isInInventory || !HUDManager.isEnabled(NAME)) return
 
-        val x = HUDManager.getX(name)
-        val y = HUDManager.getY(name)
-        val scale = HUDManager.getScale(name)
+        val x = HUDManager.getX(NAME)
+        val y = HUDManager.getY(NAME)
+        val scale = HUDManager.getScale(NAME)
 
         buildRenderData()
         val lines = getLines()
@@ -47,26 +48,26 @@ object CarryHUD {
     }
 
     private fun getLines(): List<String> {
-        if (CarryCounter.carryees.isEmpty() || Zen.isInInventory) return emptyList()
+        if (CarryCounter.carries.isEmpty() || Zen.isInInventory) return emptyList()
 
         val lines = mutableListOf<String>()
         lines.add("$prefix §f§lCarries:")
-        CarryCounter.carryees.mapTo(lines) {
+        CarryCounter.carries.mapTo(lines) {
             "§7> §b${it.name}§f: §b${it.count}§f/§b${it.total} §7(${it.getTimeSinceLastBoss()} | ${it.getBossPerHour()}§7)"
         }
         return lines
     }
 
     fun checkRegistration() {
-        val shouldRegister = CarryCounter.carryees.isNotEmpty()
+        val shouldRegister = CarryCounter.carries.isNotEmpty()
         if (shouldRegister != isRegistered) {
             try {
                 if (shouldRegister) {
                     guiClickHandler = EventBus.register<GuiEvent.Click> {
-                        if (it.state) onMouseInput()
+                        if (it.buttonState) onMouseInput()
                     }
 
-                    guiDrawHandler = EventBus.register<GuiEvent.AfterRender> {
+                    guiDrawHandler = EventBus.register<GuiEvent.Render.Post> {
                         onGuiRender(it.context)
                     }
                 } else {
@@ -74,22 +75,22 @@ object CarryHUD {
                     guiDrawHandler?.unregister()
                 }
                 isRegistered = shouldRegister
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 isRegistered = false
             }
         }
     }
 
     private fun onGuiRender(context: DrawContext) {
-        if (CarryCounter.carryees.isEmpty() || !Zen.isInInventory || !HUDManager.isEnabled(name)) return
+        if (CarryCounter.carries.isEmpty() || !Zen.isInInventory || !HUDManager.isEnabled(NAME)) return
         buildRenderData()
         render(context)
     }
 
     private fun onMouseInput() {
-        if (CarryCounter.carryees.isEmpty() || !Zen.isInInventory) return
+        if (CarryCounter.carries.isEmpty() || !Zen.isInInventory) return
 
-        val scale = HUDManager.getScale(name)
+        val scale = HUDManager.getScale(NAME)
         buttons.find {
             KnitMouse.Scaled.x >= it.x && KnitMouse.Scaled.x <= it.x + it.width * scale && KnitMouse.Scaled.y >= it.y && KnitMouse.Scaled.y <= it.y + it.height * scale
         }?.let { button ->
@@ -105,15 +106,15 @@ object CarryHUD {
     }
 
     private fun buildRenderData() {
-        val x = HUDManager.getX(name)
-        val y = HUDManager.getY(name)
-        val scale = HUDManager.getScale(name)
+        val x = HUDManager.getX(NAME)
+        val y = HUDManager.getY(NAME)
+        val scale = HUDManager.getScale(NAME)
 
         renderItems.clear()
         buttons.clear()
         renderItems.add(RenderItem("$prefix §f§lCarries:", x, y, Colors.WHITE, true))
 
-        CarryCounter.carryees.forEachIndexed { i, carryee ->
+        CarryCounter.carries.forEachIndexed { i, carryee ->
             val lineY = y + (12f * scale) + i * (12f * scale)
             val str = "§7> §b${carryee.name}§f: §b${carryee.count}§f/§b${carryee.total} §7(${carryee.getTimeSinceLastBoss()} | ${carryee.getBossPerHour()}§7)"
             val textWidth = client.textRenderer.getWidth(str) * scale
@@ -141,7 +142,7 @@ object CarryHUD {
     }
 
     private fun render(context: DrawContext) {
-        val scale = HUDManager.getScale(name)
+        val scale = HUDManager.getScale(NAME)
         val mouseX = KnitMouse.Scaled.x
         val mouseY = KnitMouse.Scaled.y
 
@@ -159,7 +160,7 @@ object CarryHUD {
 
     private fun renderTooltip(context: DrawContext, mouseX: Double, mouseY: Double) {
         hoveredButton?.let { button ->
-            val scale = HUDManager.getScale(name)
+            val scale = HUDManager.getScale(NAME)
             val tooltipWidth = (client.textRenderer.getWidth(button.tooltip) + 8) * scale
             val tooltipHeight = 16 * scale
             val tooltipX = (mouseX - tooltipWidth / 2).coerceIn(2.0, (client.window.scaledWidth - tooltipWidth - 2).toDouble()).toInt()

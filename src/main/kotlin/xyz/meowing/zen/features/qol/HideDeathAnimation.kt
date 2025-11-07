@@ -1,25 +1,30 @@
 package xyz.meowing.zen.features.qol
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.EntityEvent
 import xyz.meowing.zen.features.Feature
 import net.minecraft.entity.Entity
 import xyz.meowing.knit.api.KnitClient.world
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.EntityEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object HideDeathAnimation : Feature("hidedeathanimation") {
+@Module
+object HideDeathAnimation : Feature(
+    "hideDeathAnimation"
+) {
     override fun addConfig() {
         ConfigManager
-            .addFeature("Hide death animation", "Hide death animation", "QoL", ConfigElement(
-                "hidedeathanimation",
-                ElementType.Switch(false)
-            )
+            .addFeature(
+                "Hide death animation",
+                "Hides the death animation for the mobs",
+                "QoL",
+                ConfigElement(
+                    "hideDeathAnimation",
+                    ElementType.Switch(false)
+                )
             )
     }
-
 
     override fun initialize() {
         register<EntityEvent.Death> { event ->

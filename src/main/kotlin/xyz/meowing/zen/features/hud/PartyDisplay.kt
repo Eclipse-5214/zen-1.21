@@ -1,48 +1,55 @@
 package xyz.meowing.zen.features.hud
 
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.api.PartyTracker
+import xyz.meowing.zen.api.hypixel.PartyTracker
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.PartyEvent
-import xyz.meowing.zen.events.RenderEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.hud.HUDManager
 import xyz.meowing.zen.utils.Render2D
 import net.minecraft.client.gui.DrawContext
 import xyz.meowing.knit.api.KnitPlayer.player
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.GuiEvent
+import xyz.meowing.zen.events.core.PartyEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object PartyDisplay : Feature("partydisplay") {
-    private const val name = "Party Display"
+@Module
+object PartyDisplay : Feature(
+    "partyDisplay"
+) {
+    private const val NAME = "Party Display"
     private var partyMembers = mapOf<String, PartyTracker.PartyMember>()
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Party Display HUD", "", "HUD", ConfigElement(
-                "partydisplay",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Party display HUD",
+                "Display party members on HUD",
+                "HUD",
+                ConfigElement(
+                    "partyDisplay",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
 
     override fun initialize() {
-        HUDManager.register(name, "§9§lParty Members §r§7(5)\n §e• §3MrFast §6♚\n §e• §3MrFast §e(Archer 20)\n §e• §3MrFast §e(Mage 20)\n §e• §3MrFast §e(Berserker 20)\n §e• §3MrFast §e(Tank 20)")
+        HUDManager.register(NAME, "§9§lParty Members §r§7(5)\n §e• §3MrFast §6♚\n §e• §3MrFast §e(Archer 20)\n §e• §3MrFast §e(Mage 20)\n §e• §3MrFast §e(Berserker 20)\n §e• §3MrFast §e(Tank 20)")
 
         register<PartyEvent.Changed> { event ->
             partyMembers = event.members
         }
 
-        register<RenderEvent.HUD> { event ->
-            if (HUDManager.isEnabled(name)) render(event.context)
+        register<GuiEvent.Render.HUD> { event ->
+            if (HUDManager.isEnabled(NAME)) render(event.context)
         }
     }
 
     private fun render(context: DrawContext) {
-        val x = HUDManager.getX(name)
-        val y = HUDManager.getY(name)
-        val scale = HUDManager.getScale(name)
+        val x = HUDManager.getX(NAME)
+        val y = HUDManager.getY(NAME)
+        val scale = HUDManager.getScale(NAME)
         val lines = getDisplayLines()
 
         lines.forEachIndexed { index, line ->

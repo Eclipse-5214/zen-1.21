@@ -1,22 +1,25 @@
 package xyz.meowing.zen.features.qol
 
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
 import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.features.Feature
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-/*
- * Modified from Devonian code
- * Under GPL 3.0 License
- */
-@Zen.Module
-object HideStatusEffects : Feature("hidestatuseffects") {
+@Module
+object HideStatusEffects : Feature(
+    "hideStatusEffects"
+) {
     override fun addConfig() {
         ConfigManager
-            .addFeature("Hide status effects", "Hide status effects", "QoL", ConfigElement(
-                "hidestatuseffects",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Hide status effects",
+                "Hides status effects in your inventory",
+                "QoL",
+                ConfigElement(
+                    "hideStatusEffects",
+                    ElementType.Switch(false)
+                )
+            )
     }
 }

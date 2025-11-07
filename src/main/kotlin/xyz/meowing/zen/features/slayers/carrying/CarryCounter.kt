@@ -1,15 +1,12 @@
 package xyz.meowing.zen.features.slayers.carrying
 
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.Zen.Companion.prefix
+import com.mojang.serialization.Codec
+import com.mojang.serialization.codecs.RecordCodecBuilder
+import xyz.meowing.zen.Zen.prefix
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.EntityEvent
-import xyz.meowing.zen.events.RenderEvent
-import xyz.meowing.zen.events.ChatEvent
 import xyz.meowing.zen.features.ClientTick
 import xyz.meowing.zen.features.Feature
-import xyz.meowing.zen.utils.DataUtils
 import xyz.meowing.zen.utils.Utils.removeFormatting
 import xyz.meowing.zen.utils.NetworkUtils
 import xyz.meowing.zen.utils.SimpleTimeMark
@@ -17,16 +14,23 @@ import xyz.meowing.zen.utils.TimeUtils
 import xyz.meowing.zen.utils.TimeUtils.millis
 import xyz.meowing.zen.utils.TitleUtils.showTitle
 import xyz.meowing.zen.utils.Utils
-import xyz.meowing.zen.utils.Utils.toColorInt
 import net.minecraft.sound.SoundEvents
 import xyz.meowing.knit.api.KnitChat
 import xyz.meowing.knit.api.KnitClient.world
 import xyz.meowing.knit.api.KnitPlayer.player
 import xyz.meowing.knit.api.text.KnitText
 import xyz.meowing.knit.api.text.core.ClickEvent
-import xyz.meowing.zen.Zen.Companion.LOGGER
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.Zen.LOGGER
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.data.StoredFile
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.events.core.EntityEvent
+import xyz.meowing.zen.events.core.GuiEvent
+import xyz.meowing.zen.events.core.RenderEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
+import xyz.meowing.zen.utils.glowThisFrame
+import xyz.meowing.zen.utils.glowingColor
 import java.awt.Color
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -35,79 +39,115 @@ import kotlin.math.abs
 import kotlin.math.round
 import kotlin.time.Duration.Companion.seconds
 
-@Zen.Module
-object CarryCounter : Feature("carrycounter") {
+@Module
+object CarryCounter : Feature(
+    "carryCounter",
+    true
+) {
     private val tradeInit = Pattern.compile("^Trade completed with (?:\\[.*?] )?(\\w+)!$")
     private val tradeComp = Pattern.compile("^ \\+ (\\d+\\.?\\d*)M coins$")
     private val playerDead = Pattern.compile("^ ☠ (\\w+) was killed by (.+)\\.$")
     private val bossNames = setOf("Voidgloom Seraph", "Revenant Horror", "Tarantula Broodfather", "Sven Packmaster", "Inferno Demonlord")
-    private val carryeesByBossId = ConcurrentHashMap<Int, Carryee>()
+    private val carriesByBossId = ConcurrentHashMap<Int, Carryee>()
     private val completedCarriesMap = ConcurrentHashMap<String, CompletedCarry>()
     private val bossPerHourCache = ConcurrentHashMap<String, Pair<String, SimpleTimeMark>>()
-    private var lasttradeuser: String? = null
-    inline val carryees get() = carryeesByName.values.toList()
-    val dataUtils = DataUtils("carrylogs", CarryLogs())
-    val carryeesByName = ConcurrentHashMap<String, Carryee>()
+    private var lastTradedUser: String? = null
+    inline val carries get() = carriesByName.values.toList()
 
-    private val carrycountsend by ConfigDelegate<Boolean>("carrycountsend")
-    private val carrysendmsg by ConfigDelegate<Boolean>("carrysendmsg")
-    private val carryvalue by ConfigDelegate<String>("carryvalue")
-    private val carrybosshighlight by ConfigDelegate<Boolean>("carrybosshighlight")
-    private val carrybosscolor by ConfigDelegate<Color>("carrybosscolor")
-    private val carryclienthighlight by ConfigDelegate<Boolean>("carryclienthighlight")
-    private val carryclientcolor by ConfigDelegate<Color>("carryclientcolor")
-    private val carrywebhook by ConfigDelegate<String>("carrywebhookurl")
+    private val carryData = StoredFile("features/CarryCounter")
+    var completedCarries: List<CompletedCarry> by carryData.list("completedCarries", CompletedCarry.CODEC, emptyList())
+    val carriesByName = ConcurrentHashMap<String, Carryee>()
+
+    private val carryCountSend by ConfigDelegate<Boolean>("carryCounter.countSend")
+    private val carrySendMsg by ConfigDelegate<Boolean>("carryCounter.sendMsg")
+    private val carryValue by ConfigDelegate<String>("carryCounter.value")
+    private val carryBossHighlight by ConfigDelegate<Boolean>("carryCounter.bossHighlight")
+    private val carryBossColor by ConfigDelegate<Color>("carryCounter.bossColor")
+    private val carryClientHighlight by ConfigDelegate<Boolean>("carryCounter.clientHighlight")
+    private val carryClientColor by ConfigDelegate<Color>("carryCounter.clientColor")
+    private val carryWebhook by ConfigDelegate<String>("carryCounter.webhookUrl")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Carrying", "Carry counter", "Slayers", ConfigElement(
-                "carrycounter",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Use the command §c/carry help §rto see all the commands available. §7§oAlias: /zencarry help", "", "", ConfigElement(
-                    "",
+            .addFeature(
+                "Carry counter",
+                "Track and manage carries",
+                "Slayers",
+                ConfigElement(
+                    "carryCounter",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Help",
+                ConfigElement(
+                    "carryCounter.help",
                     ElementType.TextParagraph("Use the command §c/carry help §rto see all the commands available. §7§oAlias: /zencarry help")
-            ))
-            .addFeatureOption("Send count", "", "QOL", ConfigElement(
-                "carrycountsend",
-                ElementType.Switch(true)
+                )
             )
+            .addFeatureOption(
+                "Send count",
+                ConfigElement(
+                    "carryCounter.countSend",
+                    ElementType.Switch(true)
+                )
             )
-            .addFeatureOption("Send boss spawn message", "", "QOL", ConfigElement(
-                "carrysendmsg",
-                ElementType.Switch(true)
-            ))
-            .addFeatureOption("Carry value", "", "QOL", ConfigElement(
-                "carryvalue",
-                ElementType.TextInput("1.3", "1.3")
-            ))
-            .addFeatureOption("Carry webhook URL", "", "QOL", ConfigElement(
-                "carrywebhookurl",
-                ElementType.TextInput("", "None")
-            ))
-            .addFeatureOption("Boss highlight", "", "Boss", ConfigElement(
-                "carrybosshighlight",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Boss color", "", "Boss", ConfigElement(
-                "carrybosscolor",
-                ElementType.ColorPicker(Color(0, 255, 255, 127))
-            ))
-            .addFeatureOption("Client highlight", "", "Client", ConfigElement(
-                "carryclienthighlight",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Client color", "", "Client", ConfigElement(
-                "carryclientcolor",
-                ElementType.ColorPicker(Color(0, 255, 255, 127))
-            ))
+            .addFeatureOption(
+                "Send boss spawn message",
+                ConfigElement(
+                    "carryCounter.sendMsg",
+                    ElementType.Switch(true)
+                )
+            )
+            .addFeatureOption(
+                "Carry value",
+                ConfigElement(
+                    "carryCounter.value",
+                    ElementType.TextInput("1.3", "1.3")
+                )
+            )
+            .addFeatureOption(
+                "Carry webhook URL",
+                ConfigElement(
+                    "carryCounter.webhookUrl",
+                    ElementType.TextInput("", "None")
+                )
+            )
+            .addFeatureOption(
+                "Boss highlight",
+                ConfigElement(
+                    "carryCounter.bossHighlight",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Boss color",
+                ConfigElement(
+                    "carryCounter.bossColor",
+                    ElementType.ColorPicker(Color(0, 255, 255, 127))
+                )
+            )
+            .addFeatureOption(
+                "Client highlight",
+                ConfigElement(
+                    "carryCounter.clientHighlight",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Client color",
+                ConfigElement(
+                    "carryCounter.clientColor",
+                    ElementType.ColorPicker(Color(0, 255, 255, 127))
+                )
+            )
     }
 
     override fun initialize() {
         setupLoops {
             loop<ClientTick>(200) {
                 val world = world ?: return@loop
-                val deadCarryees = carryeesByBossId.entries.mapNotNull { (bossId, carryee) ->
+                val deadCarryees = carriesByBossId.entries.mapNotNull { (bossId, carryee) ->
                     val entity = world.getEntityById(bossId)
                     if (entity == null || !entity.isAlive) carryee else null
                 }
@@ -119,11 +159,12 @@ object CarryCounter : Feature("carrycounter") {
         }
 
         register<ChatEvent.Receive> { event ->
+            if (event.isActionBar) return@register
             val text = event.message.string.removeFormatting()
 
             tradeInit.matcher(text).let { matcher ->
                 if (matcher.matches()) {
-                    lasttradeuser = matcher.group(1)
+                    lastTradedUser = matcher.group(1)
                     return@register
                 }
             }
@@ -131,11 +172,11 @@ object CarryCounter : Feature("carrycounter") {
             tradeComp.matcher(text).let { matcher ->
                 if (matcher.matches()) {
                     val coins = matcher.group(1).toDoubleOrNull() ?: return@let
-                    val carry = carryvalue.split(',')
+                    val carry = carryValue.split(',')
                         .mapNotNull { it.trim().toDoubleOrNull() }
                         .find { abs(coins / it - round(coins / it)) < 1e-6 } ?: return@let
                     val count = round(coins / carry).toInt()
-                    lasttradeuser?.let { user ->
+                    lastTradedUser?.let { user ->
                         val message = KnitText
                             .literal("$prefix §fClick here to add §b$user §ffor §b$count §fcarries")
                             .onClick(ClickEvent.RunCommand("/zencarry add $user $count"))
@@ -148,62 +189,65 @@ object CarryCounter : Feature("carrycounter") {
 
             playerDead.matcher(text).let { matcher ->
                 if (matcher.matches() && matcher.group(2) in bossNames) {
-                    carryeesByName[matcher.group(1)]?.reset()
+                    carriesByName[matcher.group(1)]?.reset()
                 }
             }
         }
 
-        createCustomEvent<EntityEvent.Metadata>("entityMetadata") { event ->
+        createCustomEvent<EntityEvent.Packet.Metadata>("entityMetadata") { event ->
             val name = event.name
             if (name.contains("Spawned by")) {
                 val hasBlackhole = event.entity.let { entity ->
-                    world?.entities?.any { Entity ->
-                        entity.distanceTo(Entity) <= 3f && Entity.customName?.string?.removeFormatting()?.lowercase()?.contains("black hole") == true
+                    world?.entities?.any { worldEnt ->
+                        entity.distanceTo(worldEnt) <= 3f && worldEnt.customName?.string?.removeFormatting()?.lowercase()?.contains("black hole") == true
                     }
                 } ?: false
 
                 if (hasBlackhole) return@createCustomEvent
                 val spawnerName = name.substringAfter("by: ")
-                carryeesByName[spawnerName]?.onSpawn(event.packet.id - 3)
+                carriesByName[spawnerName]?.onSpawn(event.packet.id - 3)
             }
         }
 
         createCustomEvent<EntityEvent.Death>("entityDeath") { event ->
-            carryeesByBossId[event.entity.id]?.let {
+            carriesByBossId[event.entity.id]?.let {
                 val seconds = (it.startTime.since.millis / 1000.0)
                 KnitChat.fakeMessage("$prefix §fYou killed §b${it.name}§f's boss in §b${"%.1f".format(seconds)}s")
                 it.onDeath()
             }
         }
 
-        createCustomEvent<RenderEvent.EntityGlow>("bossGlow") { event ->
-            if (!carrybosshighlight) return@createCustomEvent
-            carryeesByBossId[event.entity.id]?.let {
-                if (player?.canSee(event.entity) == false) return@let
-                event.shouldGlow = true
-                event.glowColor = carrybosscolor.toColorInt()
+        createCustomEvent<RenderEvent.Entity.Pre>("bossGlow") { event ->
+            if (!carryBossHighlight) return@createCustomEvent
+            val entity = event.entity
+
+            carriesByBossId[entity.id]?.let {
+                if (player?.canSee(entity) == false) return@let
+                entity.glowThisFrame = true
+                entity.glowingColor = carryBossColor.rgb
             }
         }
 
-        createCustomEvent<RenderEvent.EntityGlow>("clientGlow") { event ->
-            if (!carryclienthighlight) return@createCustomEvent
-            val cleanName = event.entity.name.string.removeFormatting()
-            carryeesByName[cleanName]?.let {
-                if (player?.canSee(event.entity) == false) return@let
-                event.shouldGlow = true
-                event.glowColor = carryclientcolor.toColorInt()
+        createCustomEvent<RenderEvent.Entity.Pre>("clientGlow") { event ->
+            if (!carryClientHighlight) return@createCustomEvent
+            val entity = event.entity
+            val cleanName = entity.name.string.removeFormatting()
+
+            carriesByName[cleanName]?.let {
+                if (player?.canSee(entity) == false) return@let
+                entity.glowThisFrame = true
+                entity.glowingColor = carryClientColor.rgb
             }
         }
 
         CarryHUD.initialize()
-        register<RenderEvent.HUD> { CarryHUD.renderHUD(it.context) }
+        register<GuiEvent.Render.HUD> { CarryHUD.renderHUD(it.context) }
     }
 
     private fun loadCompletedCarries() {
         try {
-            val carriesList = dataUtils.getData().completedCarries
             completedCarriesMap.clear()
-            carriesList.forEach { carry ->
+            completedCarries.forEach { carry ->
                 completedCarriesMap[carry.playerName] = carry
             }
             LOGGER.info("Data loaded.")
@@ -217,7 +261,7 @@ object CarryCounter : Feature("carrycounter") {
     }
 
     private fun checkRegistration() {
-        if (carryeesByName.isNotEmpty()) {
+        if (carriesByName.isNotEmpty()) {
             registerEvent("entityMetadata")
             registerEvent("entityDeath")
             registerEvent("bossGlow")
@@ -233,42 +277,51 @@ object CarryCounter : Feature("carrycounter") {
 
     fun addCarryee(name: String, total: Int): Carryee? {
         if (name.isBlank() || total <= 0) return null
-        val existing = carryeesByName[name]
+        val existing = carriesByName[name]
         if (existing != null) {
             existing.total += total
             return existing
         }
 
         val carryee = Carryee(name, total)
-        carryeesByName[name] = carryee
+        carriesByName[name] = carryee
         checkRegistration()
         return carryee
     }
 
     fun removeCarryee(name: String): Boolean {
         if (name.isBlank()) return false
-        val carryee = carryeesByName.remove(name) ?: return false
-        carryee.bossID?.let { carryeesByBossId.remove(it) }
+        val carryee = carriesByName.remove(name) ?: return false
+        carryee.bossID?.let { carriesByBossId.remove(it) }
         checkRegistration()
         return true
     }
 
-    fun findCarryee(name: String): Carryee? = if (name.isBlank()) null else carryeesByName[name]
+    fun findCarryee(name: String): Carryee? = if (name.isBlank()) null else carriesByName[name]
 
     fun clearCarryees() {
-        carryeesByName.clear()
-        carryeesByBossId.clear()
+        carriesByName.clear()
+        carriesByBossId.clear()
         checkRegistration()
     }
-
-    data class CarryLogs(val completedCarries: MutableList<CompletedCarry> = mutableListOf())
 
     data class CompletedCarry(
         val playerName: String,
         val totalCarries: Int,
         val lastKnownCount: Int = 0,
         var timestamp: Long
-    )
+    ) {
+        companion object {
+            val CODEC: Codec<CompletedCarry> = RecordCodecBuilder.create { instance ->
+                instance.group(
+                    Codec.STRING.fieldOf("playerName").forGetter { it.playerName },
+                    Codec.INT.fieldOf("totalCarries").forGetter { it.totalCarries },
+                    Codec.INT.optionalFieldOf("lastKnownCount", 0).forGetter { it.lastKnownCount },
+                    Codec.LONG.fieldOf("timestamp").forGetter { it.timestamp }
+                ).apply(instance, ::CompletedCarry)
+            }
+        }
+    }
 
     data class Carryee(
         val name: String,
@@ -289,10 +342,10 @@ object CarryCounter : Feature("carrycounter") {
                 startTime = TimeUtils.now
                 isFighting = true
                 bossID = id
-                carryeesByBossId[id] = this
+                carriesByBossId[id] = this
                 Utils.playSound(SoundEvents.ENTITY_CAT_AMBIENT, 5f, 2f)
                 showTitle("§bBoss spawned", "§bby §c$name", 1000)
-                if (carrysendmsg) KnitChat.fakeMessage("$prefix §fBoss spawned by §c$name")
+                if (carrySendMsg) KnitChat.fakeMessage("$prefix §fBoss spawned by §c$name")
             }
         }
 
@@ -304,7 +357,7 @@ object CarryCounter : Feature("carrycounter") {
 
             if (++count >= total) {
                 complete()
-                if (carrywebhook.isNotEmpty()) {
+                if (carryWebhook.isNotEmpty()) {
                     val completeWebhookData =
                         """
                         {
@@ -318,12 +371,12 @@ object CarryCounter : Feature("carrycounter") {
                         }
                     """.trimIndent()
                     NetworkUtils.postData(
-                        url = carrywebhook,
+                        url = carryWebhook,
                         body = completeWebhookData,
                         onError = { LOGGER.warn("Carry-Webhook onComplete POST failed: ${it.message}") }
                     )
                 }
-            } else if (carrywebhook.isNotEmpty()) {
+            } else if (carryWebhook.isNotEmpty()) {
                 val webhookData =
                     """
                         {
@@ -337,13 +390,13 @@ object CarryCounter : Feature("carrycounter") {
                         }
                     """.trimIndent()
                 NetworkUtils.postData(
-                    url = carrywebhook,
+                    url = carryWebhook,
                     body = webhookData,
                     onError = { LOGGER.error("Carry-Webhook onKill POST failed: ${it.message}") }
                 )
             }
 
-            if (carrycountsend) KnitChat.sendCommand("pc $name: $count/$total")
+            if (carryCountSend) KnitChat.sendCommand("pc $name: $count/$total")
         }
 
         fun reset() {
@@ -355,7 +408,7 @@ object CarryCounter : Feature("carrycounter") {
 
         private fun cleanup() {
             isFighting = false
-            bossID?.let { carryeesByBossId.remove(it) }
+            bossID?.let { carriesByBossId.remove(it) }
             startTime = TimeUtils.zero
             startTicks = null
             bossID = null
@@ -395,18 +448,19 @@ object CarryCounter : Feature("carrycounter") {
 
             completedCarriesMap[name] = updatedCarry
 
-            val carriesList = dataUtils.getData().completedCarries
+            val carriesList = completedCarries.toMutableList()
             val existingIndex = carriesList.indexOfFirst { it.playerName == name }
             if (existingIndex != -1) carriesList[existingIndex] = updatedCarry
             else carriesList.add(updatedCarry)
 
-            dataUtils.save()
+            completedCarries = carriesList
+
             KnitChat.fakeMessage("$prefix §fCarries completed for §b$name §fin §b${sessionTime}s")
             Utils.playSound(SoundEvents.ENTITY_CAT_AMBIENT, 5f, 2f)
             showTitle("§fCarries Completed: §b$name", "§b$count§f/§b$total", 3000)
 
-            carryeesByName.remove(name)
-            bossID?.let { carryeesByBossId.remove(it) }
+            carriesByName.remove(name)
+            bossID?.let { carriesByBossId.remove(it) }
             checkRegistration()
         }
     }

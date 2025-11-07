@@ -1,29 +1,33 @@
 package xyz.meowing.zen.features.dungeons
 
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.api.PetTracker
+import xyz.meowing.zen.api.skyblock.PetTracker
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
 import xyz.meowing.zen.events.EventBus
-import xyz.meowing.zen.events.RenderEvent
-import xyz.meowing.zen.events.TickEvent
-import xyz.meowing.zen.events.WorldEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.hud.HUDManager
-import xyz.meowing.zen.utils.DungeonUtils
-import xyz.meowing.zen.utils.DungeonUtils.getCurrentCata
 import xyz.meowing.zen.utils.ItemUtils.createSkull
 import xyz.meowing.zen.utils.Render2D
 import xyz.meowing.zen.utils.Utils.removeFormatting
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.item.ItemStack
 import xyz.meowing.knit.api.KnitPlayer.player
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.knit.api.events.EventCall
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.dungeons.DungeonAPI
+import xyz.meowing.zen.api.location.SkyBlockIsland
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.events.core.GuiEvent
+import xyz.meowing.zen.events.core.LocationEvent
+import xyz.meowing.zen.events.core.TickEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object MaskTimers : Feature("masktimers", area = "catacombs") {
-    private const val name = "MaskTimers"
+@Module
+object MaskTimers : Feature(
+    "maskTimers",
+    island = SkyBlockIsland.THE_CATACOMBS
+) {
+    private const val NAME = "MaskTimers"
     private val SpiritMask: ItemStack = createSkull("eyJ0aW1lc3RhbXAiOjE1MDUyMjI5OTg3MzQsInByb2ZpbGVJZCI6IjBiZTU2MmUxNzIyODQ3YmQ5MDY3MWYxNzNjNjA5NmNhIiwicHJvZmlsZU5hbWUiOiJ4Y29vbHgzIiwic2lnbmF0dXJlUmVxdWlyZWQiOnRydWUsInRleHR1cmVzIjp7IlNLSU4iOnsibWV0YWRhdGEiOnsibW9kZWwiOiJzbGltIn0sInVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvOWJiZTcyMWQ3YWQ4YWI5NjVmMDhjYmVjMGI4MzRmNzc5YjUxOTdmNzlkYTRhZWEzZDEzZDI1M2VjZTlkZWMyIn19fQ==")
     private val BonzoMask: ItemStack = createSkull("eyJ0aW1lc3RhbXAiOjE1ODc5MDgzMDU4MjYsInByb2ZpbGVJZCI6IjJkYzc3YWU3OTQ2MzQ4MDI5NDI4MGM4NDIyNzRiNTY3IiwicHJvZmlsZU5hbWUiOiJzYWR5MDYxMCIsInNpZ25hdHVyZVJlcXVpcmVkIjp0cnVlLCJ0ZXh0dXJlcyI6eyJTS0lOIjp7InVybCI6Imh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvMTI3MTZlY2JmNWI4ZGEwMGIwNWYzMTZlYzZhZjYxZThiZDAyODA1YjIxZWI4ZTQ0MDE1MTQ2OGRjNjU2NTQ5YyJ9fX0=")
     private val Phoenix: ItemStack = createSkull("ewogICJ0aW1lc3RhbXAiIDogMTY0Mjg2NTc3MTM5MSwKICAicHJvZmlsZUlkIiA6ICJiYjdjY2E3MTA0MzQ0NDEyOGQzMDg5ZTEzYmRmYWI1OSIsCiAgInByb2ZpbGVOYW1lIiA6ICJsYXVyZW5jaW8zMDMiLAogICJzaWduYXR1cmVSZXF1aXJlZCIgOiB0cnVlLAogICJ0ZXh0dXJlcyIgOiB7CiAgICAiU0tJTiIgOiB7CiAgICAgICJ1cmwiIDogImh0dHA6Ly90ZXh0dXJlcy5taW5lY3JhZnQubmV0L3RleHR1cmUvNjZiMWI1OWJjODkwYzljOTc1Mjc3ODdkZGUyMDYwMGM4Yjg2ZjZiOTkxMmQ1MWE2YmZjZGIwZTRjMmFhM2M5NyIsCiAgICAgICJtZXRhZGF0YSIgOiB7CiAgICAgICAgIm1vZGVsIiA6ICJzbGltIgogICAgICB9CiAgICB9CiAgfQp9")
@@ -39,32 +43,40 @@ object MaskTimers : Feature("masktimers", area = "catacombs") {
 
     data class MaskData(val mask: ItemStack, val timeStr: String, val color: String, val isWearing: Boolean)
 
-    private val tickCall: EventBus.EventCall = EventBus.register<TickEvent.Server> ({
+    private val tickCall: EventCall = EventBus.register<TickEvent.Server> {
         updateTimers()
         updateHelmetStatus()
-    })
+    }
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Mask cooldown display", "", "Dungeons", ConfigElement(
-                "masktimers",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Mask cooldown display",
+                "Shows cooldown timers for dungeon masks",
+                "Dungeons",
+                ConfigElement(
+                    "maskTimers",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
     override fun initialize() {
-        HUDManager.registerCustom(name, 60, 57, this::HUDEditorRender)
+        HUDManager.registerCustom(NAME, 60, 57, this::HUDEditorRender)
 
         register<ChatEvent.Receive> { event ->
+            if (event.isActionBar) return@register
             val text = event.message.string.removeFormatting()
 
             when {
                 text.matches(BonzoRegex) -> {
-                    BonzoTicks = (maxOf(180.0, 360.0 - getCurrentCata() * 3.6) * 20)
+                    val time = if (text.contains("⚚")) 180.0 else 360.0
+
+                    BonzoTicks = (maxOf(180.0, time - DungeonAPI.cataLevel * 3.6) * 20)
                     tickCall.register()
                 }
                 text == "Second Wind Activated! Your Spirit Mask saved your life!" -> {
-                    SpiritTicks = DungeonUtils.getMageReduction(30.0, true) * 20
+                    SpiritTicks = DungeonAPI.getMageReduction(30.0) * 20
                     tickCall.register()
                 }
                 text == "Your Phoenix Pet saved you from certain death!" -> {
@@ -74,11 +86,11 @@ object MaskTimers : Feature("masktimers", area = "catacombs") {
             }
         }
 
-        register<RenderEvent.HUD> { event ->
-            if (HUDManager.isEnabled(name)) render(event.context)
+        register<GuiEvent.Render.HUD> { event ->
+            if (HUDManager.isEnabled(NAME)) render(event.context)
         }
 
-        register<WorldEvent.Change> {
+        register<LocationEvent.WorldChange> {
             BonzoTicks = 0.0
             SpiritTicks = 0.0
         }
@@ -100,9 +112,9 @@ object MaskTimers : Feature("masktimers", area = "catacombs") {
         val activeMasks = getActiveMasks()
         if (activeMasks.isEmpty()) return
 
-        val x = HUDManager.getX(name)
-        val y = HUDManager.getY(name)
-        val scale = HUDManager.getScale(name)
+        val x = HUDManager.getX(NAME)
+        val y = HUDManager.getY(NAME)
+        val scale = HUDManager.getScale(NAME)
         drawHUD(context, x, y, scale, false, activeMasks)
     }
 

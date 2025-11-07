@@ -1,8 +1,7 @@
 package xyz.meowing.zen.features.slayers.carrying
 
 import xyz.meowing.knit.api.command.Commodore
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.Zen.Companion.prefix
+import xyz.meowing.zen.Zen.prefix
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.hud.HUDEditor
 import xyz.meowing.zen.utils.TickUtils
@@ -12,12 +11,13 @@ import xyz.meowing.knit.api.KnitClient.world
 import xyz.meowing.knit.api.text.KnitText
 import xyz.meowing.knit.api.text.core.ClickEvent
 import xyz.meowing.knit.api.text.core.ColorCodes
+import xyz.meowing.zen.annotations.Command
 import java.text.SimpleDateFormat
 import java.util.*
 
-@Zen.Command
+@Command
 object CarryCommand : Commodore("carry", "zencarry") {
-    private val carrycounter by ConfigDelegate<Boolean>("carrycounter")
+    private val carrycounter by ConfigDelegate<Boolean>("carryCounter")
     private var currentLogPage = 1
 
     init {
@@ -31,7 +31,7 @@ object CarryCommand : Commodore("carry", "zencarry") {
                                     add(player.name.string)
                                 }
                             }
-                            CarryCounter.carryees.forEach { add(it.name) }
+                            CarryCounter.carries.forEach { add(it.name) }
                         }
                     }
                 }
@@ -52,7 +52,7 @@ object CarryCommand : Commodore("carry", "zencarry") {
         literal("remove") {
             executable {
                 param("player") {
-                    suggests { CarryCounter.carryees.map { it.name } }
+                    suggests { CarryCounter.carries.map { it.name } }
                 }
                 runs { player: String ->
                     if (!checkEnabled()) return@runs
@@ -65,7 +65,7 @@ object CarryCommand : Commodore("carry", "zencarry") {
         literal("settotal") {
             executable {
                 param("player") {
-                    suggests { CarryCounter.carryees.map { it.name } }
+                    suggests { CarryCounter.carries.map { it.name } }
                 }
                 runs { player: String, total: Int ->
                     if (!checkEnabled()) return@runs
@@ -83,7 +83,7 @@ object CarryCommand : Commodore("carry", "zencarry") {
         literal("setcount") {
             executable {
                 param("player") {
-                    suggests { CarryCounter.carryees.map { it.name } }
+                    suggests { CarryCounter.carries.map { it.name } }
                 }
                 runs { player: String, count: Int ->
                     if (!checkEnabled()) return@runs
@@ -102,12 +102,12 @@ object CarryCommand : Commodore("carry", "zencarry") {
         literal("list") {
             runs {
                 if (!checkEnabled()) return@runs
-                if (CarryCounter.carryees.isEmpty()) {
+                if (CarryCounter.carries.isEmpty()) {
                     KnitChat.fakeMessage("$prefix §fNo active carries.")
                     return@runs
                 }
                 KnitChat.fakeMessage("$prefix §fActive Carries:")
-                CarryCounter.carryees.forEach { carryee ->
+                CarryCounter.carries.forEach { carryee ->
                     val progress = "§b${carryee.count}§f/§b${carryee.total}"
                     val lastBoss = if (carryee.count > 0) "§7(${carryee.getTimeSinceLastBoss()} ago)" else ""
                     KnitChat.fakeMessage("§7> §b${carryee.name}§f - $progress $lastBoss")
@@ -118,7 +118,7 @@ object CarryCommand : Commodore("carry", "zencarry") {
         literal("clear") {
             runs {
                 if (!checkEnabled()) return@runs
-                val count = CarryCounter.carryees.size
+                val count = CarryCounter.carries.size
                 CarryCounter.clearCarryees()
                 KnitChat.fakeMessage("$prefix §fCleared §b$count§f carries.")
             }
@@ -161,7 +161,7 @@ object CarryCommand : Commodore("carry", "zencarry") {
     private fun showLogs(page: Int) {
         if (!checkEnabled()) return
 
-        val logs = CarryCounter.dataUtils.getData().completedCarries.sortedByDescending { it.timestamp }
+        val logs = CarryCounter.completedCarries.sortedByDescending { it.timestamp }
         if (logs.isEmpty()) {
             KnitChat.fakeMessage("$prefix §fNo carry logs found.")
             return

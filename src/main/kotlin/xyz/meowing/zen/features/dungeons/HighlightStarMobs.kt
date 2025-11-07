@@ -1,35 +1,48 @@
 package xyz.meowing.zen.features.dungeons
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.EntityEvent
-import xyz.meowing.zen.events.RenderEvent
-import xyz.meowing.zen.events.WorldEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.TickUtils
-import xyz.meowing.zen.utils.Utils.toColorInt
 import net.minecraft.entity.decoration.ArmorStandEntity
 import xyz.meowing.knit.api.KnitPlayer.player
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.location.SkyBlockIsland
+import xyz.meowing.zen.events.core.EntityEvent
+import xyz.meowing.zen.events.core.LocationEvent
+import xyz.meowing.zen.events.core.RenderEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
+import xyz.meowing.zen.utils.glowThisFrame
+import xyz.meowing.zen.utils.glowingColor
 import java.awt.Color
 
-@Zen.Module
-object HighlightStarMobs : Feature("boxstarmobs", area = "catacombs") {
-    private val boxstarmobscolor by ConfigDelegate<Color>("boxstarmobscolor")
+@Module
+object HighlightStarMobs : Feature(
+    "highlightStarMobs",
+    island = SkyBlockIsland.THE_CATACOMBS
+) {
     private val entities = mutableListOf<Int>()
+    private val starMobsColor by ConfigDelegate<Color>("highlightStarMobs.color")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Highlight star mobs", "", "Dungeons", ConfigElement(
-                "boxstarmobs",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Highlight star mobs color", "Highlight star mobs color", "Color", ConfigElement(
-                "boxstarmobscolor",
-                ElementType.ColorPicker(Color(0, 255, 255, 127))
-            ))
+            .addFeature(
+                "Highlight star mobs",
+                "Highlights starred mobs in dungeons",
+                "Dungeons",
+                ConfigElement(
+                    "highlightStarMobs",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Highlight star mobs color",
+                ConfigElement(
+                    "highlightStarMobs.color",
+                    ElementType.ColorPicker(Color(0, 255, 255, 127))
+                )
+            )
     }
 
     override fun initialize() {
@@ -50,17 +63,17 @@ object HighlightStarMobs : Feature("boxstarmobs", area = "catacombs") {
             }
         }
 
-        register<WorldEvent.Change> {
+        register<LocationEvent.WorldChange> {
             entities.clear()
         }
 
-        register<RenderEvent.EntityGlow> { event ->
-            val ent = event.entity
-            if (!entities.contains(ent.id)) return@register
+        register<RenderEvent.Entity.Pre> { event ->
+            val entity = event.entity
+            if (!entities.contains(entity.id)) return@register
 
-            if (player?.canSee(event.entity) == true) {
-                event.shouldGlow = true
-                event.glowColor = boxstarmobscolor.toColorInt()
+            if (player?.canSee(entity) == true) {
+                entity.glowThisFrame = true
+                entity.glowingColor = starMobsColor.rgb
             }
         }
     }

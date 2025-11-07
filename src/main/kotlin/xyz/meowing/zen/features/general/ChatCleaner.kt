@@ -1,5 +1,8 @@
 package xyz.meowing.zen.features.general
 
+import com.google.gson.Gson
+import com.mojang.serialization.Codec
+import com.mojang.serialization.codecs.RecordCodecBuilder
 import gg.essential.elementa.ElementaVersion
 import gg.essential.elementa.UIComponent
 import gg.essential.elementa.WindowScreen
@@ -13,15 +16,12 @@ import gg.essential.elementa.constraints.CramSiblingConstraint
 import gg.essential.elementa.constraints.animation.Animations
 import gg.essential.elementa.dsl.*
 import gg.essential.universal.UKeyboard
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.Zen.Companion.prefix
+import xyz.meowing.zen.Zen.prefix
 import xyz.meowing.zen.config.ConfigDelegate
-import xyz.meowing.zen.config.ui.constraint.ChildHeightConstraint
+import xyz.meowing.zen.ui.constraint.ChildHeightConstraint
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.mixins.AccessorChatHud
-import xyz.meowing.zen.utils.DataUtils
 import xyz.meowing.zen.utils.TickUtils
 import xyz.meowing.zen.utils.Utils.removeFormatting
 import net.minecraft.client.gui.screen.ChatScreen
@@ -33,17 +33,21 @@ import xyz.meowing.knit.api.input.KnitKey
 import xyz.meowing.knit.api.input.KnitMouse
 import xyz.meowing.knit.api.text.KnitText
 import xyz.meowing.knit.api.text.core.ClickEvent
-import xyz.meowing.zen.Zen.Companion.LOGGER
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
-import xyz.meowing.zen.events.KeyEvent
+import xyz.meowing.zen.Zen.LOGGER
+import xyz.meowing.zen.annotations.Command
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.data.StoredFile
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.events.core.KeyEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import java.awt.Color
 import java.util.regex.Pattern
 
 enum class ChatFilterType { REGEX, EQUALS, CONTAINS }
 
 data class ChatPattern(
-    var pattern: String,
+    val pattern: String,
     val filterType: ChatFilterType
 ) {
     fun matches(message: String): Boolean {
@@ -53,36 +57,58 @@ data class ChatPattern(
             ChatFilterType.REGEX -> try { message.matches(pattern.toRegex()) } catch (_: Exception) { false }
         }
     }
+
+    companion object {
+        val CODEC: Codec<ChatPattern> = RecordCodecBuilder.create { instance ->
+            instance.group(
+                Codec.STRING.fieldOf("pattern").forGetter { it.pattern },
+                Codec.STRING.xmap(
+                    { ChatFilterType.valueOf(it) },
+                    { it.name }
+                ).fieldOf("filterType").forGetter { it.filterType }
+            ).apply(instance, ::ChatPattern)
+        }
+    }
 }
 
-data class ChatPatterns(val patterns: MutableList<ChatPattern> = mutableListOf())
-
-@Zen.Module
-object ChatCleaner : Feature("chatcleaner") {
-    private val chatcleanerkey by ConfigDelegate<Int>("chatcleanerkey")
-    val patterns get() = dataUtils.getData().patterns
-    val dataUtils = DataUtils("chatcleaner", ChatPatterns())
+@Module
+object ChatCleaner : Feature(
+    "chatCleaner"
+) {
+    private val chatCleanerKey by ConfigDelegate<Int>("chatCleaner.keybind")
+    val patternData = StoredFile("features/ChatCleaner")
+    var patterns: List<ChatPattern> by patternData.list("patterns", ChatPattern.CODEC)
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Chat Cleaner", "", "General", ConfigElement(
-                "chatcleaner",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Keybind to add message to filter", "Keybind to add message to filter", "Options", ConfigElement(
-                    "chatcleanerkey",
+            .addFeature(
+                "Chat cleaner",
+                "Filter out unwanted chat messages using custom patterns",
+                "General",
+                ConfigElement(
+                    "chatCleaner",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Keybind to add message to filter",
+                ConfigElement(
+                    "chatCleaner.keybind",
                     ElementType.Keybind(GLFW.GLFW_KEY_H)
-            ))
-            .addFeatureOption("Chat Cleaner Filter GUI", "Chat Cleaner Filter GUI", "GUI", ConfigElement(
-                "chatcleanergui",
-                ElementType.Button("Open Filter GUI") {
-                    TickUtils.schedule(2) {
-                        client.setScreen(ChatCleanerGui())
+                )
+            )
+            .addFeatureOption(
+                "Chat cleaner filter GUI",
+                ConfigElement(
+                    "chatCleaner.guiButton",
+                    ElementType.Button("Open Filter GUI") {
+                        TickUtils.schedule(2) {
+                            client.setScreen(ChatCleanerGui())
+                        }
                     }
-                }
-            ))
+                )
+            )
     }
-
 
     init {
         loadDefault()
@@ -90,12 +116,13 @@ object ChatCleaner : Feature("chatcleaner") {
 
     override fun initialize() {
         register<ChatEvent.Receive> { event ->
+            if (event.isActionBar) return@register
             val message = event.message.string.removeFormatting()
             if (patterns.any { it.matches(message) }) event.cancel()
         }
 
         register<KeyEvent.Press> { _ ->
-            if (client.currentScreen !is ChatScreen || !KnitKey(chatcleanerkey).isPressed) return@register
+            if (client.currentScreen !is ChatScreen || !KnitKey(chatCleanerKey).isPressed) return@register
 
             val chat = client.inGameHud.chatHud as AccessorChatHud
             val line = chat.getMessageLineIdx(chat.toChatLineMX(KnitMouse.Scaled.x), chat.toChatLineMY(KnitMouse.Scaled.y))
@@ -115,11 +142,11 @@ object ChatCleaner : Feature("chatcleaner") {
         if (patterns.isEmpty()) {
             try {
                 javaClass.getResourceAsStream("/assets/zen/chatfilter.json")?.use { stream ->
-                    val defaultPatterns = com.google.gson.Gson().fromJson(
+                    val defaultPatterns = Gson().fromJson(
                         stream.bufferedReader().readText(), Array<String>::class.java
                     )
-                    patterns.addAll(defaultPatterns.map { ChatPattern(it, ChatFilterType.REGEX) })
-                    dataUtils.save()
+                    patterns = defaultPatterns.map { ChatPattern(it, ChatFilterType.REGEX) }
+                    patternData.forceSave()
                 }
             } catch (e: Exception) {
                 LOGGER.warn("Caught error while trying to load defaults in ChatCleaner: $e")
@@ -131,7 +158,8 @@ object ChatCleaner : Feature("chatcleaner") {
         if (pattern.isBlank() || patterns.any { it.pattern == pattern && it.filterType == filterType }) return false
         return try {
             if (filterType == ChatFilterType.REGEX) Pattern.compile(pattern)
-            patterns.add(ChatPattern(pattern, filterType))
+            patterns = patterns + ChatPattern(pattern, filterType)
+            patternData.forceSave()
             true
         } catch (_: Exception) {
             false
@@ -140,19 +168,24 @@ object ChatCleaner : Feature("chatcleaner") {
 
     fun removePattern(index: Int): Boolean {
         if (index < 0 || index >= patterns.size) return false
-        patterns.removeAt(index)
+        patterns = patterns.filterIndexed { i, _ -> i != index }
+        patternData.forceSave()
         return true
     }
 
     fun clearAllPatterns() {
-        patterns.clear()
+        patterns = emptyList()
+        patternData.forceSave()
     }
 
     fun updatePattern(index: Int, newPattern: String, filterType: ChatFilterType): Boolean {
         if (index < 0 || index >= patterns.size || newPattern.isBlank()) return false
         return try {
             if (filterType == ChatFilterType.REGEX) Pattern.compile(newPattern)
-            patterns[index] = ChatPattern(newPattern, filterType)
+            patterns = patterns.mapIndexed { i, pattern ->
+                if (i == index) ChatPattern(newPattern, filterType) else pattern
+            }
+            patternData.forceSave()
             true
         } catch (_: Exception) {
             false
@@ -160,7 +193,7 @@ object ChatCleaner : Feature("chatcleaner") {
     }
 }
 
-@Zen.Command
+@Command
 object ChatCleanerCommand : Commodore("chatcleaner", "zencc", "zenchatcleaner") {
     init {
         runs {
@@ -168,7 +201,7 @@ object ChatCleanerCommand : Commodore("chatcleaner", "zencc", "zenchatcleaner") 
                 val message = KnitText
                     .literal("$prefix §cYou do not have the feature §bChatCleaner §cenabled!")
                     .onHover("Click to enable feature.")
-                    .onClick(ClickEvent.RunCommand("/zen updateConfig chatcleaner true false"))
+                    .onClick(ClickEvent.RunCommand("/zen updateConfig chatCleaner true false"))
                     .toVanilla()
 
                 KnitChat.fakeMessage(message)
@@ -269,7 +302,7 @@ class ChatCleanerGui : WindowScreen(ElementaVersion.V2, newGuiScale = 2) {
 
     override fun onScreenClose() {
         super.onScreenClose()
-        ChatCleaner.dataUtils.save()
+        ChatCleaner.patternData.forceSave()
     }
 
     private fun createBlock(radius: Float): UIRoundedRectangle = UIRoundedRectangle(radius)

@@ -1,30 +1,38 @@
 package xyz.meowing.zen.features.general
 
 import xyz.meowing.knit.api.KnitChat
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
+import xyz.meowing.zen.events.core.ChatEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.Utils.removeFormatting
 import java.util.regex.Pattern
 
-@Zen.Module
-object GuildMessage : Feature("guildmessage") {
+@Module
+object GuildMessage : Feature(
+    "guildMessage"
+) {
     private val guildPattern = Pattern.compile("Guild > (\\[.+?])? ?([a-zA-Z0-9_]+) ?(\\[.+?])?: (.+)")
     private val rankPattern = Pattern.compile("\\[(.+?)]")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Clean guild messages", "Clean guild messages", "General", ConfigElement(
-                "guildmessage",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Clean guild messages",
+                "Reformats guild messages",
+                "General",
+                ConfigElement(
+                    "guildMessage",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
     override fun initialize() {
         register<ChatEvent.Receive> { event ->
+            if (event.isActionBar) return@register
             val text = event.message.string.removeFormatting()
             val m = guildPattern.matcher(text)
             if (m.matches()) {
@@ -53,17 +61,24 @@ object GuildMessage : Feature("guildmessage") {
     }
 }
 
-@Zen.Module
-object PartyMessage : Feature("partymessage") {
+@Module
+object PartyMessage : Feature(
+    "partyMessage"
+) {
     private val partyPattern = Pattern.compile("Party > (\\[.+?])? ?(.+?): (.+)")
     private val rankPattern = Pattern.compile("\\[(.+?)]")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Clean party messages", "Clean party messages", "General", ConfigElement(
-                "partymessage",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Clean party messages",
+                "Reformats party messages",
+                "General",
+                ConfigElement(
+                    "partyMessage",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
     override fun initialize() {

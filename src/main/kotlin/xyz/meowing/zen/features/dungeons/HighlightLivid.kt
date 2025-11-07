@@ -1,17 +1,11 @@
 package xyz.meowing.zen.features.dungeons
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
-import xyz.meowing.zen.events.RenderEvent
-import xyz.meowing.zen.events.TickEvent
-import xyz.meowing.zen.events.WorldEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.Render3D
 import xyz.meowing.zen.utils.TickUtils
 import xyz.meowing.zen.utils.Utils.removeFormatting
-import xyz.meowing.zen.utils.Utils.toColorInt
 import xyz.meowing.zen.utils.Utils.toFloatArray
 import net.minecraft.block.BlockState
 import net.minecraft.block.Blocks
@@ -21,12 +15,25 @@ import net.minecraft.util.DyeColor
 import net.minecraft.util.math.BlockPos
 import xyz.meowing.knit.api.KnitClient.world
 import xyz.meowing.knit.api.KnitPlayer.player
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.dungeons.DungeonFloor
+import xyz.meowing.zen.api.location.SkyBlockIsland
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.events.core.LocationEvent
+import xyz.meowing.zen.events.core.RenderEvent
+import xyz.meowing.zen.events.core.TickEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
+import xyz.meowing.zen.utils.glowThisFrame
+import xyz.meowing.zen.utils.glowingColor
 import java.awt.Color
 
-@Zen.Module
-object HighlightLivid : Feature("highlightlivid", area = "catacombs", subarea = listOf("F5", "M5")) {
+@Module
+object HighlightLivid : Feature(
+    "highlightLivid",
+    island = SkyBlockIsland.THE_CATACOMBS,
+    dungeonFloor = listOf(DungeonFloor.F5, DungeonFloor.M5)
+) {
     private var lividEntity: Entity? = null
     private val lividPos = BlockPos(5, 108, 42)
     private val lividTypes = mapOf(
@@ -41,6 +48,7 @@ object HighlightLivid : Feature("highlightlivid", area = "catacombs", subarea = 
         DyeColor.PURPLE to "Purple",
         DyeColor.YELLOW to "Arcade"
     )
+
     val stainedGlassBlocks = mapOf(
         Blocks.RED_STAINED_GLASS to DyeColor.RED,
         Blocks.ORANGE_STAINED_GLASS to DyeColor.ORANGE,
@@ -59,48 +67,64 @@ object HighlightLivid : Feature("highlightlivid", area = "catacombs", subarea = 
         Blocks.BLACK_STAINED_GLASS to DyeColor.BLACK,
         Blocks.BROWN_STAINED_GLASS to DyeColor.BROWN
     )
-    private val highlightlividline by ConfigDelegate<Boolean>("highlightlividline")
-    private val hidewronglivid by ConfigDelegate<Boolean>("hidewronglivid")
-    private val highlightlividcolor by ConfigDelegate<Color>("highlightlividcolor")
+
+    private val highlightLividColor by ConfigDelegate<Color>("highlightLivid.color")
+    private val hideWrongLivid by ConfigDelegate<Boolean>("highlightLivid.hideWrong")
+    private val highlightLividLine by ConfigDelegate<Boolean>("highlightLivid.line")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Highlight Livid", "Highlight correct livid", "Dungeons", ConfigElement(
-                "highlightlivid",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Highlight correct livid color", "Highlight correct livid color", "Color", ConfigElement(
-                "highlightlividcolor",
-                ElementType.ColorPicker(Color(0, 255, 255, 127))
-            ))
-            .addFeatureOption("Hide incorrect livid entity", "Hide incorrect livid entity", "Options", ConfigElement(
-                "hidewronglivid",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Line to correct livid entity", "Line to correct livid entity", "Options", ConfigElement(
-                "highlightlividline",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Highlight livid",
+                "Highlights the correct Livid in dungeons",
+                "Dungeons",
+                ConfigElement(
+                    "highlightLivid",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Highlight correct livid color",
+                ConfigElement(
+                    "highlightLivid.color",
+                    ElementType.ColorPicker(Color(0, 255, 255, 127))
+                )
+            )
+            .addFeatureOption(
+                "Hide incorrect livid entity",
+                ConfigElement(
+                    "highlightLivid.hideWrong",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Line to correct livid entity",
+                ConfigElement(
+                    "highlightLivid.line",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
-
     override fun initialize() {
-        createCustomEvent<RenderEvent.EntityGlow>("renderLivid") { event ->
-            if (lividEntity == event.entity) {
-                event.shouldGlow = true
-                event.glowColor = highlightlividcolor.toColorInt()
+        createCustomEvent<RenderEvent.Entity.Pre>("renderLivid") { event ->
+            val entity = event.entity
+
+            if (lividEntity == entity && player?.canSee(entity) == true) {
+                entity.glowThisFrame = true
+                entity.glowingColor = highlightLividColor.rgb
             }
         }
 
-        createCustomEvent<RenderEvent.World>("renderLine") { event ->
+        createCustomEvent<RenderEvent.World.Last>("renderLine") { event ->
             lividEntity?.let { entity ->
                 if (player?.canSee(entity) == true) {
                     Render3D.drawLineToEntity(
                         entity,
-                        event.consumers,
-                        event.matrixStack,
-                        highlightlividcolor.toFloatArray(),
-                        highlightlividcolor.alpha.toFloat()
+                        event.context.consumers(),
+                        event.context.matrixStack(),
+                        highlightLividColor.toFloatArray(),
+                        highlightLividColor.alpha.toFloat()
                     )
                 }
             }
@@ -140,15 +164,15 @@ object HighlightLivid : Feature("highlightlivid", area = "catacombs", subarea = 
             }
         }
 
-        register<WorldEvent.Change> {
+        register<LocationEvent.WorldChange> {
             unregisterRender()
         }
     }
 
     private fun registerRender() {
         registerEvent("renderLivid")
-        if (hidewronglivid) registerEvent("renderWrong")
-        if (highlightlividline) registerEvent("renderLine")
+        if (hideWrongLivid) registerEvent("renderWrong")
+        if (highlightLividLine) registerEvent("renderLine")
     }
 
     private fun unregisterRender() {

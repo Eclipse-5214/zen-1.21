@@ -1,32 +1,41 @@
 package xyz.meowing.zen.features.dungeons
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.Utils.removeFormatting
 import xyz.meowing.knit.api.KnitChat
 import xyz.meowing.knit.api.KnitPlayer.player
 import xyz.meowing.knit.api.text.KnitText
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object PartyFinderMessage : Feature("partyfindermsgs") {
+@Module
+object PartyFinderMessage : Feature(
+    "partyFinderMsgs"
+) {
     private val joinedPattern = Regex("^Party Finder > (.+?) joined the dungeon group! \\((\\w+) Level (\\d+)\\)$")
     private val classSetPattern = Regex("^Party Finder > (.+?) set their class to (\\w+) Level (\\d+)!$")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Custom PF Messages", "", "Dungeons", ConfigElement(
-                "partyfindermsgs",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Custom PF messages",
+                "Custom party finder join and leave messages",
+                "Dungeons",
+                ConfigElement(
+                    "partyFinderMsgs",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
 
     override fun initialize() {
         register<ChatEvent.Receive> { event ->
+            if (event.isActionBar) return@register
+
             val text = event.message.string.removeFormatting()
 
             when {

@@ -12,14 +12,15 @@ import net.minecraft.screen.GenericContainerScreenHandler
 import net.minecraft.sound.SoundEvent
 import net.minecraft.text.MutableText
 import net.minecraft.text.OrderedText
+import net.minecraft.text.Style
 import net.minecraft.text.Text
-import org.apache.commons.lang3.StringUtils
 import org.apache.commons.lang3.SystemUtils
 import xyz.meowing.knit.api.KnitClient.client
 import java.awt.Color
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.Optional
 import kotlin.math.absoluteValue
 
 object Utils {
@@ -73,10 +74,6 @@ object Utils {
     }
 
     fun String.removeEmotes() = replace(emoteRegex, "")
-
-    fun Color.toColorInt(): Int {
-        return (alpha shl 24) or (red shl 16) or (green shl 8) or blue
-    }
 
     fun Int.toColorFloat(): Float {
         return this / 255f
@@ -159,105 +156,136 @@ object Utils {
      * https://github.com/AzureAaron/aaron-mod/blob/master/src/main/java/net/azureaaron/mod/utils/TextTransformer.java
      */
     fun replaceMultipleEntriesInText(text: Text, replacements: Object2ObjectLinkedOpenHashMap<String, Text>): Text {
-        val stringified = text.string
-        var newText = text as? MutableText ?: Text.empty().append(text) as MutableText
+        if (replacements.isEmpty())
+            return text
 
-        for ((wantedWord, replacementText) in replacements) {
-            val occurs = stringified.indexOf(wantedWord) != -1
-            if (!occurs) continue
+        val content = text.string
+        val contentLength = content.length
 
-            val occurrences = StringUtils.countMatches(stringified, wantedWord)
-            var indexFrom = 0
+        if (contentLength == 0)
+            return text
 
-            repeat(occurrences) {
-                val currentString = newText.string
-                val startIndex = currentString.indexOf(wantedWord, indexFrom)
-                val endIndex = startIndex + wantedWord.length
+        data class ReplacementEntry(val target: String, val replacement: Text, val targetLen: Int)
 
-                if (startIndex == -1) return@repeat
+        val entries = ArrayList<ReplacementEntry>(replacements.size)
+        var hasAnyMatch = false
 
-                val textComponents = newText.siblings
-
-                if (textComponents.size <= startIndex) {
-                    newText = deconstructAllComponents(newText)
-                }
-
-                val components = newText.siblings
-                if (components.size > startIndex) {
-                    components[startIndex] = replacementText
-
-                    for (i in endIndex - 1 downTo startIndex + 1) {
-                        if (i < components.size) {
-                            components.removeAt(i)
-                        }
-                    }
-                }
-
-                newText = deconstructComponents(newText)
-
-                val lengthDiff = newText.string.length - currentString.length
-                indexFrom = endIndex + lengthDiff
+        for ((target, replacement) in replacements) {
+            if (!hasAnyMatch && content.indexOf(target) != -1) {
+                hasAnyMatch = true
             }
+            entries.add(ReplacementEntry(target, replacement, target.length))
         }
 
-        return newText
+        if (!hasAnyMatch)
+            return text
+
+        entries.sortByDescending { it.targetLen }
+
+        data class StyledChar(val char: Char, val style: Style)
+        val styledChars = ArrayList<StyledChar>(contentLength)
+
+        text.visit({ style, str ->
+            for (char in str) {
+                styledChars.add(StyledChar(char, style))
+            }
+            Optional.empty<Any>()
+        }, Style.EMPTY)
+
+        val result = Text.empty() as MutableText
+        var idx = 0
+
+        while (idx < contentLength && idx < styledChars.size) {
+            var found = false
+
+            for (i in 0 until entries.size) {
+                val entry = entries[i]
+                if (idx + entry.targetLen <= contentLength &&
+                    content.regionMatches(idx, entry.target, 0, entry.targetLen)) {
+                    result.append(entry.replacement)
+                    idx += entry.targetLen
+                    found = true
+                    break
+                }
+            }
+
+            if (!found) {
+                val styledChar = styledChars[idx]
+                result.append(Text.literal(String(Character.toChars(content.codePointAt(idx)))).setStyle(styledChar.style))
+                idx++
+            }
+
+        }
+
+        return result
     }
 
     fun replaceMultipleEntriesInOrdered(orderedText: OrderedText, replacements: Object2ObjectLinkedOpenHashMap<String, Text>): OrderedText {
-        val text = orderedTextToText(orderedText)
-        return replaceMultipleEntriesInText(text, replacements).asOrderedText()
-    }
+        if (replacements.isEmpty())
+            return orderedText
 
-    private fun deconstructComponents(text: Text): MutableText {
-        val currentComponents = text.siblings
-        val newText = Text.empty() as MutableText
-        val newComponents = newText.siblings
-
-        for (current in currentComponents) {
-            val currentString = current.string
-
-            if (currentString.length <= 1) {
-                newComponents.add(current)
-                continue
-            }
-
-            current.asOrderedText().accept { _, style, codePoint ->
-                newComponents.add(Text.literal(Character.toString(codePoint)).setStyle(style))
-                true
-            }
-        }
-
-        return newText
-    }
-
-    private fun deconstructAllComponents(text: Text): MutableText {
-        val newText = Text.empty() as MutableText
-        val newComponents = newText.siblings
-
-        text.asOrderedText().accept { _, style, codePoint ->
-            newComponents.add(Text.literal(Character.toString(codePoint)).setStyle(style))
-            true
-        }
-
-        for (sibling in text.siblings) {
-            sibling.asOrderedText().accept { _, style, codePoint ->
-                newComponents.add(Text.literal(Character.toString(codePoint)).setStyle(style))
-                true
-            }
-        }
-
-        return newText
-    }
-
-    private fun orderedTextToText(orderedText: OrderedText): Text {
-        val text = Text.empty() as MutableText
+        val textBuilder = StringBuilder()
+        val styles = ArrayList<Pair<Int, Style>>()
 
         orderedText.accept { _, style, codePoint ->
-            text.append(Text.literal(Character.toString(codePoint)).setStyle(style))
+            styles.add(textBuilder.length to style)
+            textBuilder.appendCodePoint(codePoint)
             true
         }
 
-        return text
+        val content = textBuilder.toString()
+        val contentLength = content.length
+
+        if (contentLength == 0)
+            return orderedText
+
+        data class ReplacementEntry(val target: String, val replacement: Text, val targetLen: Int)
+
+        val entries = ArrayList<ReplacementEntry>(replacements.size)
+        var hasAnyMatch = false
+
+        for ((target, replacement) in replacements) {
+            if (!hasAnyMatch && content.indexOf(target) != -1) {
+                hasAnyMatch = true
+            }
+            entries.add(ReplacementEntry(target, replacement, target.length))
+        }
+
+        if (!hasAnyMatch)
+            return orderedText
+
+        entries.sortByDescending { it.targetLen }
+
+        val styleMap = HashMap<Int, Style>(styles.size)
+        for (i in 0 until styles.size) {
+            styleMap[styles[i].first] = styles[i].second
+        }
+
+        val result = Text.empty() as MutableText
+        var idx = 0
+
+        while (idx < contentLength) {
+            var found = false
+
+            for (i in 0 until entries.size) {
+                val entry = entries[i]
+                if (idx + entry.targetLen <= contentLength &&
+                    content.regionMatches(idx, entry.target, 0, entry.targetLen)) {
+                    result.append(entry.replacement)
+                    idx += entry.targetLen
+                    found = true
+                    break
+                }
+            }
+
+            if (!found) {
+                val style = styleMap[idx] ?: Style.EMPTY
+                result.append(Text.literal(String(Character.toChars(content.codePointAt(idx)))).setStyle(style))
+                idx++
+            }
+        }
+
+        return result.asOrderedText()
     }
 
     fun getFormattedDate(): String {

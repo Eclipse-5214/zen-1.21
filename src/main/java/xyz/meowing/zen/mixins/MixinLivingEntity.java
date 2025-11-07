@@ -1,10 +1,12 @@
 package xyz.meowing.zen.mixins;
 
-
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
-import xyz.meowing.zen.events.EntityEvent;
+import tech.thatgravyboat.skyblockapi.api.datatype.DataType;
+import tech.thatgravyboat.skyblockapi.impl.DataTypesRegistry;
+import xyz.meowing.knit.api.KnitPlayer;
 import xyz.meowing.zen.events.EventBus;
+import xyz.meowing.zen.events.core.EntityEvent;
 import xyz.meowing.zen.features.visuals.ItemAnimations;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
@@ -28,10 +30,6 @@ public abstract class MixinLivingEntity extends Entity {
         super(type, world);
     }
 
-    /*
-     * Modified from Devonian code
-     * Under GPL 3.0 License
-     */
     @Inject(method = "onDeath", at = @At(value = "INVOKE", target = "Lnet/minecraft/entity/LivingEntity;setPose(Lnet/minecraft/entity/EntityPose;)V"))
     private void zen$onDeath(DamageSource damageSource, CallbackInfo ci) {
         EventBus.INSTANCE.post(new EntityEvent.Death(this));
@@ -39,8 +37,25 @@ public abstract class MixinLivingEntity extends Entity {
 
     @WrapMethod(method = "tickHandSwing")
     private void zen$modifySwingPos(Operation<Void> original) {
+        if (!ItemAnimations.INSTANCE.isEnabled()) {
+            original.call();
+            return;
+        }
+
+        if (ItemAnimations.INSTANCE.getNoSwing()) {
+            handSwingProgress = 0F;
+            zen$animationTicks = 0;
+            return;
+        }
+
+        if (ItemAnimations.noSwingTerm()) {
+            handSwingProgress = 0F;
+            zen$animationTicks = 0;
+            return;
+        }
+
         double speedMultiplier = ItemAnimations.INSTANCE.getSwingSpeed();
-        if (speedMultiplier == 0.0 || !ItemAnimations.INSTANCE.isEnabled()) {
+        if (speedMultiplier == 0.0) {
             original.call();
             return;
         }
@@ -55,6 +70,8 @@ public abstract class MixinLivingEntity extends Entity {
 
     @Inject(method = "swingHand(Lnet/minecraft/util/Hand;Z)V", at = @At("HEAD"))
     public void zen$onSwing(Hand hand, boolean fromServerPlayer, CallbackInfo ci) {
-        if (zen$animationTicks == 0 && ItemAnimations.INSTANCE.isEnabled()) zen$animationTicks = 1;
+        if (zen$animationTicks == 0 && ItemAnimations.INSTANCE.isEnabled() && !ItemAnimations.INSTANCE.getNoSwing()) {
+            zen$animationTicks = 1;
+        }
     }
 }

@@ -9,8 +9,7 @@ import gg.essential.elementa.WindowScreen
 import gg.essential.elementa.components.*
 import gg.essential.elementa.constraints.*
 import gg.essential.elementa.dsl.*
-import xyz.meowing.zen.Zen.Companion.prefix
-import xyz.meowing.zen.utils.DataUtils
+import xyz.meowing.zen.Zen.prefix
 import xyz.meowing.zen.utils.NetworkUtils
 import xyz.meowing.zen.utils.NetworkUtils.createConnection
 import xyz.meowing.zen.utils.TickUtils
@@ -25,9 +24,8 @@ import java.net.URI
 import java.util.concurrent.CompletableFuture
 
 object UpdateChecker {
-    private const val current = "1.1.8"
-    private const val modrinthProjectId = "stWFyj4m"
-    const val githubRepository = "StellariumMC/zen-1.21"
+    private const val MODRINTH_PROJECT_ID = "stWFyj4m"
+    const val GITHUB_REPO = "StellariumMC/zen-1.21"
     private var isMessageShown = false
     private var latestVersion: String? = null
     private var githubUrl: String? = null
@@ -36,10 +34,8 @@ object UpdateChecker {
     private var modrinthDownloadUrl: String? = null
     var forceUpdate = false
 
-    private val settingsData = DataUtils("update_settings", UpdateSettings())
-    private val dontShowForVersion: String? get() = settingsData.getData().dontShowForVersion
+    var dontShowForVersion: String by Zen.saveData.string("dontShowForVersion")
 
-    data class UpdateSettings(val dontShowForVersion: String? = null)
     data class GitHubRelease(val tag_name: String, val html_url: String, val prerelease: Boolean, val assets: List<GitHubAsset>)
     data class GitHubAsset(val name: String, val browser_download_url: String)
     data class ModrinthVersion(val id: String, val version_number: String, val date_published: String, val game_versions: List<String>, val loaders: List<String>, val status: String, val version_type: String, val files: List<ModrinthFile>)
@@ -49,9 +45,9 @@ object UpdateChecker {
         CompletableFuture.supplyAsync {
             val github = checkGitHub()
             val modrinth = checkModrinth()
-            val latest = listOfNotNull(github?.first, modrinth?.first).maxByOrNull { compareVersions(it, current) } ?: return@supplyAsync
+            val latest = listOfNotNull(github?.first, modrinth?.first).maxByOrNull { compareVersions(it, Zen.modInfo.version) } ?: return@supplyAsync
 
-            if ((compareVersions(latest, current) > 0 && latest != dontShowForVersion) || forceUpdate) {
+            if ((compareVersions(latest, Zen.modInfo.version) > 0 && latest != dontShowForVersion) || forceUpdate) {
                 isMessageShown = true
                 forceUpdate = false
                 latestVersion = latest
@@ -65,7 +61,7 @@ object UpdateChecker {
     }
 
     private fun checkGitHub(): Triple<String, String, String?>? = runCatching {
-        val connection = createConnection("https://api.github.com/repos/${githubRepository}/releases")
+        val connection = createConnection("https://api.github.com/repos/${GITHUB_REPO}/releases")
         connection.requestMethod = "GET"
 
         if (connection.responseCode == 200) {
@@ -82,7 +78,7 @@ object UpdateChecker {
     }.getOrNull()
 
     private fun checkModrinth(): Triple<String, String, String?>? = runCatching {
-        val connection = createConnection("https://api.modrinth.com/v2/project/${modrinthProjectId}/version")
+        val connection = createConnection("https://api.modrinth.com/v2/project/${MODRINTH_PROJECT_ID}/version")
         connection.requestMethod = "GET"
 
         if (connection.responseCode == 200) {
@@ -105,7 +101,7 @@ object UpdateChecker {
             filteredVersions.maxByOrNull { it.date_published }?.let { version ->
                 val primaryFile = version.files.firstOrNull { it.primary } ?: version.files.firstOrNull()
                 primaryFile?.let {
-                    Triple(version.version_number, "https://modrinth.com/mod/${modrinthProjectId}/version/${version.id}", it.url)
+                    Triple(version.version_number, "https://modrinth.com/mod/${MODRINTH_PROJECT_ID}/version/${version.id}", it.url)
                 }
             }
         } else null
@@ -122,13 +118,11 @@ object UpdateChecker {
         return 0
     }
 
-    fun getCurrentVersion() = current
     fun getLatestVersion() = latestVersion
     fun getGithubUrl() = githubUrl
     fun getModrinthUrl() = modrinthUrl
     fun getGithubDownloadUrl() = githubDownloadUrl
     fun getModrinthDownloadUrl() = modrinthDownloadUrl
-    fun setDontShowForVersion(version: String) = settingsData.setData(UpdateSettings(version))
 }
 
 class UpdateGUI : WindowScreen(ElementaVersion.V10) {
@@ -188,7 +182,7 @@ class UpdateGUI : WindowScreen(ElementaVersion.V10) {
             setTextScale(0.9f.pixels())
         } childOf versionContainer
 
-        UIText("v${UpdateChecker.getCurrentVersion()}").apply {
+        UIText("v${Zen.modInfo.version}").apply {
             setX(0.percent())
             setY(18.75.percent())
             setColor(Color(248, 113, 113))
@@ -266,7 +260,7 @@ class UpdateGUI : WindowScreen(ElementaVersion.V10) {
         } childOf mainContainer
 
         createButton("Don't Show Again", colors["element"]!!, colors["elementHover"]!!) {
-            UpdateChecker.setDontShowForVersion(UpdateChecker.getLatestVersion() ?: "")
+            UpdateChecker.dontShowForVersion = UpdateChecker.getLatestVersion() ?: ""
             client?.setScreen(null)
         }.apply {
             setX(0.percent())

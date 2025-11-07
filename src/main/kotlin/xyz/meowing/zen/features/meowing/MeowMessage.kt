@@ -1,25 +1,32 @@
 package xyz.meowing.zen.features.meowing
 
 import xyz.meowing.knit.api.KnitChat
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
 import xyz.meowing.zen.events.EventBus
 import xyz.meowing.zen.features.Feature
 import kotlin.random.Random
 
-@Zen.Module
-object MeowMessage : Feature("meowmessage") {
+@Module
+object MeowMessage : Feature(
+    "meowMessage"
+) {
     private val variants = listOf("meow", "mew", "mrow", "nyaa", "purr", "mrrp", "meoww", "nya")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Cat Speak", "Cat Speak", "Meowing", ConfigElement(
-                "meowmessage",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Cat speak",
+                "Adds random meows and purrs to your messages :3",
+                "Meowing",
+                ConfigElement(
+                    "meowMessage",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
 

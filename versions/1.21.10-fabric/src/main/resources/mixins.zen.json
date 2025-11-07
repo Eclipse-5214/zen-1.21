@@ -1,0 +1,12 @@
+{
+    "required": true,
+    "package": "xyz.meowing.zen.mixins",
+    "compatibilityLevel": "JAVA_21",
+    "mixins": [
+        "MixinClientConnection",
+        "MixinEntity"
+    ],
+    "injectors": {
+        "defaultRequire": 1
+    }
+}

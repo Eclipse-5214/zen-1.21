@@ -1,9 +1,7 @@
 package xyz.meowing.zen.features.hud
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.RenderEvent
 import xyz.meowing.zen.features.ClientTick
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.hud.HUDManager
@@ -12,15 +10,17 @@ import net.minecraft.client.gui.DrawContext
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import xyz.meowing.knit.api.KnitPlayer
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.GuiEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object ArmorHUD : Feature("armorhud") {
-    private const val name = "Armor HUD"
+@Module
+object ArmorHUD : Feature(
+    "armorHud"
+) {
+    private const val NAME = "Armor HUD"
     private var armor = emptyList<ItemStack?>()
-    private val armorhudvert by ConfigDelegate<Boolean>("armorhudvert")
-    private val armorpieces by ConfigDelegate<Set<Int>>("armorpieces")
 
     private val exampleArmor = listOf(
         ItemStack(Items.DIAMOND_HELMET),
@@ -29,27 +29,41 @@ object ArmorHUD : Feature("armorhud") {
         ItemStack(Items.DIAMOND_BOOTS)
     )
 
+    private val armorHudVertical by ConfigDelegate<Boolean>("armorHud.vertical")
+    private val armorPieces by ConfigDelegate<Set<Int>>("armorHud.pieces")
+
     override fun addConfig() {
         ConfigManager
-            .addFeature("Armor HUD", "", "HUD", ConfigElement(
-                "armorhud",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Vertical Armor HUD", "Vertical Armor HUD", "Options", ConfigElement(
-                "armorhudvert",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Armor pieces to render", "Armor pieces to render", "Options", ConfigElement(
-                "armorpieces",
-                ElementType.MultiCheckbox(
-                    listOf("Helmet", "Chestplate", "Leggings", "Boots"),
-                    setOf(0, 1, 2, 3)
+            .addFeature(
+                "Armor HUD",
+                "Display armor pieces on HUD",
+                "HUD",
+                ConfigElement(
+                    "armorHud",
+                    ElementType.Switch(false)
                 )
-            ))
+            )
+            .addFeatureOption(
+                "Vertical armor HUD",
+                ConfigElement(
+                    "armorHud.vertical",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Armor pieces to render",
+                ConfigElement(
+                    "armorHud.pieces",
+                    ElementType.MultiCheckbox(
+                        listOf("Helmet", "Chestplate", "Leggings", "Boots"),
+                        setOf(0, 1, 2, 3)
+                    )
+                )
+            )
     }
 
     override fun initialize() {
-        HUDManager.registerCustom(name, if (armorhudvert) 16 else 70, if (armorhudvert) 70 else 16, this::HUDEditorRender)
+        HUDManager.registerCustom(NAME, if (armorHudVertical) 16 else 70, if (armorHudVertical) 70 else 16, this::HUDEditorRender)
 
         setupLoops {
             loop<ClientTick>(20) {
@@ -57,15 +71,15 @@ object ArmorHUD : Feature("armorhud") {
             }
         }
 
-        register<RenderEvent.HUD> { event ->
-            if (HUDManager.isEnabled(name)) render(event.context)
+        register<GuiEvent.Render.HUD> { event ->
+            if (HUDManager.isEnabled(NAME)) render(event.context)
         }
     }
 
     private fun render(context: DrawContext) {
-        val x = HUDManager.getX(name)
-        val y = HUDManager.getY(name)
-        val scale = HUDManager.getScale(name)
+        val x = HUDManager.getX(NAME)
+        val y = HUDManager.getY(NAME)
+        val scale = HUDManager.getScale(NAME)
         drawHUD(context, x, y, scale, false)
     }
 
@@ -78,15 +92,15 @@ object ArmorHUD : Feature("armorhud") {
         val iconSize = 16f * scale
         val spacing = 2f * scale
         val armorToRender = if (preview) exampleArmor else armor
-        val selectedPieces = armorpieces
+        val selectedPieces = armorPieces
 
         var currentX = x
         var currentY = y
 
-        armorToRender.forEachIndexed { index, item ->
+        armorToRender.reversed().forEachIndexed { index, item ->
             if (selectedPieces.contains(index)) {
                 if (item != null) Render2D.renderItem(context, item, currentX, currentY, scale)
-                if (armorhudvert) currentY += iconSize + spacing
+                if (armorHudVertical) currentY += iconSize + spacing
                 else currentX += iconSize + spacing
             }
         }

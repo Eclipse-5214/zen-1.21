@@ -1,35 +1,42 @@
 package xyz.meowing.zen.features.hud
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.EntityEvent
-import xyz.meowing.zen.events.MouseEvent
-import xyz.meowing.zen.events.RenderEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.hud.HUDManager
 import xyz.meowing.zen.utils.ItemUtils.displayName
 import xyz.meowing.zen.utils.ItemUtils.extraAttributes
-import xyz.meowing.zen.utils.LoopUtils
 import xyz.meowing.zen.utils.Render2D
 import net.minecraft.client.gui.DrawContext
 import xyz.meowing.knit.api.KnitPlayer
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.knit.api.scheduler.TimeScheduler
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.EntityEvent
+import xyz.meowing.zen.events.core.GuiEvent
+import xyz.meowing.zen.events.core.MouseEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object FatalTempoOverlay : Feature("fataltempooverlay",true) {
+@Module
+object FatalTempoOverlay : Feature(
+    "fatalTempoOverlay",
+    true
+) {
     private val hits = mutableListOf<Long>()
     private var level = 0
     private var currentPercent = 0
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Fatal Tempo Overlay", "", "HUD", ConfigElement(
-                "fataltempooverlay",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Fatal tempo overlay",
+                "Display fatal tempo stacks",
+                "HUD",
+                ConfigElement(
+                    "fatalTempoOverlay",
+                    ElementType.Switch(false)
+                )
+            )
     }
-
 
     override fun initialize() {
         HUDManager.register("Fatal Tempo", "§eFatal Tempo: §a200%")
@@ -42,7 +49,7 @@ object FatalTempoOverlay : Feature("fataltempooverlay",true) {
             if (event.button == 0) checkFatal()
         }
 
-        register<RenderEvent.HUD> {
+        register<GuiEvent.Render.HUD> {
             if (HUDManager.isEnabled("Fatal Tempo")) render(it.context)
         }
     }
@@ -62,7 +69,7 @@ object FatalTempoOverlay : Feature("fataltempooverlay",true) {
         hits.removeAll { currentTime - it > 3000 }
         currentPercent = minOf(200, hits.size * level * 10)
 
-        LoopUtils.setTimeout(3100) {
+        TimeScheduler.schedule(3100) {
             hits.removeAll { System.currentTimeMillis() - it > 3000 }
             currentPercent = minOf(200, hits.size * level * 10)
         }

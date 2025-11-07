@@ -1,16 +1,18 @@
 package xyz.meowing.zen.features.general
 
 import xyz.meowing.knit.api.KnitChat
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
 import xyz.meowing.zen.events.EventBus
+import xyz.meowing.zen.events.core.ChatEvent
 import xyz.meowing.zen.features.Feature
 
-@Zen.Module
-object ChatEmotes : Feature("chatemotes") {
+@Module
+object ChatEmotes : Feature(
+    "chatEmotes"
+) {
     val HYPIXEL_EMOTES = mapOf(
         "<3" to "❤",
         ":star:" to "✮",
@@ -42,16 +44,16 @@ object ChatEmotes : Feature("chatemotes") {
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Chat Emotes", "Automatically replace emote codes with Unicode symbols in chat messages", "General", ConfigElement(
-                "chatemotes",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Chat Emotes Info", "", "", ConfigElement(
-                "",
-                ElementType.TextParagraph("Automatically replace emote codes with Unicode symbols in chat messages, example: <3 becomes ❤, use /emotes to see all supported emotes.")
-            ))
+            .addFeature(
+                "Chat emotes",
+                "Automatically replace emote codes with Unicode symbols in chat messages\n§7Example: <3 becomes ❤, use /emotes to see all supported emotes",
+                "General",
+                ConfigElement(
+                    "chatEmotes",
+                    ElementType.Switch(false)
+                )
+            )
     }
-
 
     override fun initialize() {
         val emotePattern = HYPIXEL_EMOTES.keys

@@ -1,10 +1,7 @@
 package xyz.meowing.zen.features.general
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
-import xyz.meowing.zen.events.PacketEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.ItemUtils.getSBStrength
 import xyz.meowing.zen.utils.ItemUtils.isHolding
@@ -14,23 +11,37 @@ import net.minecraft.network.packet.s2c.play.PlaySoundS2CPacket
 import net.minecraft.util.Hand
 import xyz.meowing.knit.api.KnitChat
 import xyz.meowing.knit.api.KnitPlayer.player
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.events.core.PacketEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object RagnarockAlert : Feature("ragalert", true) {
-    private val ragparty by ConfigDelegate<Boolean>("ragparty")
+@Module
+object RagnarockAlert : Feature(
+    "ragAlert",
+    true
+) {
+    private val ragParty by ConfigDelegate<Boolean>("ragAlert.party")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Ragnarok alert", "", "General", ConfigElement(
-                "ragalert",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Send party message", "Send party message", "Options", ConfigElement(
-                "ragparty",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Ragnarok alert",
+                "Show alert on ragnarok cast",
+                "General",
+                ConfigElement(
+                    "ragAlert",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Send party message",
+                ConfigElement(
+                    "ragAlert.party",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
     override fun initialize() {
@@ -39,8 +50,9 @@ object RagnarockAlert : Feature("ragalert", true) {
                 val packet = event.packet
                 if (!packet.sound.toString().contains("minecraft:entity.wolf.death") || packet.pitch != 1.4920635f || !isHolding("RAGNAROCK_AXE")) return@register
                 val strengthGain = ((player?.getStackInHand(Hand.MAIN_HAND)?.getSBStrength ?: return@register) * 1.5).toInt()
+
                 showTitle("§cRag §fCasted!", "§c❁ Strength:§b $strengthGain", 2000)
-                if (ragparty) KnitChat.sendCommand("pc Strength from Ragnarok: $strengthGain")
+                if (ragParty) KnitChat.sendCommand("pc Strength from Ragnarok: $strengthGain")
             }
         }
 

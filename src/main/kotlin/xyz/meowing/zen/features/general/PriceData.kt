@@ -1,29 +1,32 @@
 package xyz.meowing.zen.features.general
 
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.api.ItemAPI
+import xyz.meowing.zen.api.item.ItemAPI
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ItemTooltipEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.features.Timer
 import xyz.meowing.zen.utils.ItemUtils.displayName
 import xyz.meowing.zen.utils.Utils.abbreviateNumber
 import xyz.meowing.zen.utils.Utils.formatNumber
 import net.minecraft.text.Text
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import tech.thatgravyboat.skyblockapi.api.item.calculator.getItemValue
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.ItemTooltipEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object PriceData : Feature("pricedata", true) {
-    private val displaySet by ConfigDelegate<Set<Int>>("pricedatadisplay")
-    private val abbreviateNumbers by ConfigDelegate<Boolean>("abbreviatenumbers")
+@Module
+object PriceData : Feature(
+    "priceData",
+    true
+) {
     private val displayOptions = listOf(
         "Active Listings",
         "Daily Sales",
         "BIN Price",
         "Auction Price",
-        "Bazaar"
+        "Bazaar",
+        "Raw Craft Cost"
     )
 
     data class CacheEntry(
@@ -33,22 +36,35 @@ object PriceData : Feature("pricedata", true) {
 
     private val tooltipCache = mutableMapOf<String, CacheEntry>()
 
+    private val displaySet by ConfigDelegate<Set<Int>>("priceData.display")
+    private val abbreviateNumbers by ConfigDelegate<Boolean>("priceData.abbreviateNumbers")
+
     override fun addConfig() {
         ConfigManager
-            .addFeature("Price Data", "", "General", ConfigElement(
-                "pricedata",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Price information to show", "Price information to show", "Options", ConfigElement(
-                "pricedatadisplay",
-                ElementType.MultiCheckbox(displayOptions, setOf(0, 1, 2, 3, 4))
-            ))
-            .addFeatureOption("Use abbreviated numbers (1.2M instead of 1,200,000)", "Use abbreviated numbers (1.2M instead of 1,200,000)", "Options", ConfigElement(
-                "abbreviatenumbers",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Price data",
+                "Shows price information for items",
+                "General",
+                ConfigElement(
+                    "priceData",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Info to show",
+                ConfigElement(
+                    "priceData.display",
+                    ElementType.MultiCheckbox(displayOptions, setOf(0, 1, 2, 3, 4))
+                )
+            )
+            .addFeatureOption(
+                "Abbreviate numbers",
+                ConfigElement(
+                    "priceData.abbreviateNumbers",
+                    ElementType.Switch(false)
+                )
+            )
     }
-
 
     private fun Number.formatPrice(): String = if (abbreviateNumbers) abbreviateNumber() else formatNumber()
 
@@ -127,6 +143,11 @@ object PriceData : Feature("pricedata", true) {
                         ?.formatPrice() ?: "§7N/A"
                     priceLines.add(Text.literal("§3Bazaar: §e${bazaarBuy} §8[Buy] §7• §a${bazaarSell} §8[Sell]"))
                 }
+            }
+
+            if (5 in displaySet) {
+                val rawCraftCost = stack.getItemValue().price.formatPrice()
+                priceLines.add(Text.literal("§3Raw Craft Cost: §a$rawCraftCost"))
             }
 
             if (priceLines.isNotEmpty()) {

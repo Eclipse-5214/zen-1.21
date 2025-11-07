@@ -11,13 +11,10 @@ import gg.essential.elementa.constraints.CenterConstraint
 import gg.essential.elementa.constraints.CramSiblingConstraint
 import gg.essential.elementa.constraints.animation.Animations
 import gg.essential.elementa.dsl.*
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.Zen.Companion.prefix
+import xyz.meowing.zen.Zen.prefix
 import xyz.meowing.zen.config.ConfigDelegate
-import xyz.meowing.zen.config.ui.constraint.ChildHeightConstraint
+import xyz.meowing.zen.ui.constraint.ChildHeightConstraint
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.EntityEvent
-import xyz.meowing.zen.events.SkyblockEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.TickUtils
 import xyz.meowing.zen.utils.Utils.removeFormatting
@@ -27,8 +24,13 @@ import xyz.meowing.knit.api.KnitChat
 import xyz.meowing.knit.api.KnitClient.client
 import xyz.meowing.knit.api.KnitPlayer.player
 import xyz.meowing.knit.api.command.Commodore
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Command
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.EntityEvent
+import xyz.meowing.zen.events.core.SkyblockEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
+import xyz.meowing.zen.managers.config.ConfigManager.configUI
 import java.awt.Color
 import java.text.DecimalFormat
 
@@ -50,55 +52,64 @@ data class DamageStats(
     var enabledTypes: MutableSet<DamageType> = mutableSetOf(DamageType.CRIT)
 )
 
-@Zen.Module
-object DamageTracker : Feature("damagetracker", true) {
-    private val selectedTypes by ConfigDelegate<Set<Int>>("damagetrackertype")
-    private val damagetrackersend by ConfigDelegate<Boolean>("damagetrackersend")
-
+@Module
+object DamageTracker : Feature(
+    "damageTracker",
+    true
+) {
     val stats = DamageStats()
     private val formatter = DecimalFormat("#,###")
     private var lastHitEntity: Entity? = null
     private var lastHitTime = 0L
 
+    private val hitDetectionTypes by ConfigDelegate<Set<Int>>("damageTracker.hitTypes")
+    private val showInChat by ConfigDelegate<Boolean>("damageTracker.showInChat")
+
     override fun addConfig() {
         ConfigManager
-            .addFeature("Damage Tracker", "Track damage dealt to mobs", "General", ConfigElement(
-                "damagetracker",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Damage Tracker Info", "", "", ConfigElement(
-                "",
-                ElementType.TextParagraph("This does not track the damage done by arrows shot using duplex or the extra arrows from Terminator")
-            ))
-            .addFeatureOption("Hit detection types", "Hit detection types", "Options", ConfigElement(
-                "damagetrackertype",
-                ElementType.MultiCheckbox(
-                    options = DamageType.entries.map { it.displayName },
-                    default = setOf(0)
+            .addFeature(
+                "Damage tracker",
+                "Track damage dealt to mobs\n§7This does not track the damage done by arrows shot using duplex or the extra arrows from Terminator",
+                "General",
+                ConfigElement(
+                    "damageTracker",
+                    ElementType.Switch(false)
                 )
-            ))
-            .addFeatureOption("Show damage in chat", "Show damage in chat", "Options", ConfigElement(
-                "damagetrackersend",
-                ElementType.Switch(true)
-            ))
-            .addFeatureOption("Damage Stats GUI", "Damage Stats GUI", "GUI", ConfigElement(
-                "damagetrackergui",
-                ElementType.Button("Open Stats") {
-                    TickUtils.schedule(2) {
-                        client.setScreen(DamageTrackerGui())
+            )
+            .addFeatureOption(
+                "Hit detection types",
+                ConfigElement(
+                    "damageTracker.hitTypes",
+                    ElementType.MultiCheckbox(
+                        options = DamageType.entries.map { it.displayName },
+                        default = setOf(0)
+                    )
+                )
+            )
+            .addFeatureOption(
+                "Show damage in chat",
+                ConfigElement(
+                    "damageTracker.showInChat",
+                    ElementType.Switch(true)
+                )
+            )
+            .addFeatureOption(
+                "Damage stats GUI",
+                ConfigElement(
+                    "damageTracker.guiButton",
+                    ElementType.Button("Open Stats") {
+                        TickUtils.schedule(2) {
+                            client.setScreen(DamageTrackerGui())
+                        }
                     }
-                }
-            ))
-            .addFeatureOption("Damage Tracker GUI Info", "", "GUI", ConfigElement(
-                "",
-                ElementType.TextParagraph("Use the command §c/damagetracker §rto open the Stats GUI. §7§oAlias: /zendt, /dmg")
-            ))
+                )
+            )
     }
 
     override fun initialize() {
         updateEnabledTypes()
 
-        Zen.configUI.registerListener("damagetrackertype") {
+        configUI.registerListener("damagetrackertype") {
             updateEnabledTypes()
         }
 
@@ -131,7 +142,7 @@ object DamageTracker : Feature("damagetracker", true) {
             stats.entries.add(DamageEntry(event.damage, type))
             if (stats.entries.size > 1000) stats.entries.removeAt(0)
 
-            if (damagetrackersend) {
+            if (showInChat) {
                 val formattedDamage = formatter.format(event.damage)
                 val message = "${type.chatColor}${type.symbol} §r${type.chatColor}$formattedDamage §8[${type.displayName}]"
                 KnitChat.fakeMessage("$prefix $message")
@@ -141,7 +152,7 @@ object DamageTracker : Feature("damagetracker", true) {
 
     private fun updateEnabledTypes() {
         stats.enabledTypes.clear()
-        selectedTypes.forEach { index ->
+        hitDetectionTypes.forEach { index ->
             if (index < DamageType.entries.size) stats.enabledTypes.add(DamageType.entries[index])
         }
     }
@@ -176,7 +187,7 @@ object DamageTracker : Feature("damagetracker", true) {
     }
 }
 
-@Zen.Command
+@Command
 object DamageTrackerCommand : Commodore("damagetracker", "dt", "dmg") {
     init {
         runs {

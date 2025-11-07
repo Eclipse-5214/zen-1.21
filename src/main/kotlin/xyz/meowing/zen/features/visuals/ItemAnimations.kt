@@ -1,70 +1,129 @@
 package xyz.meowing.zen.features.visuals
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ConfigDelegate
 import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.features.Feature
 import net.minecraft.client.util.math.MatrixStack
 import net.minecraft.util.math.RotationAxis
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import tech.thatgravyboat.skyblockapi.api.datatype.DataTypes
+import tech.thatgravyboat.skyblockapi.api.datatype.getData
+import xyz.meowing.knit.api.KnitPlayer
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object ItemAnimations : Feature("itemanimations") {
-    private val itemSize by ConfigDelegate<Double>("itemsize")
-    private val itemX by ConfigDelegate<Double>("itemx")
-    private val itemY by ConfigDelegate<Double>("itemy")
-    private val itemZ by ConfigDelegate<Double>("itemz")
-    private val itemPitch by ConfigDelegate<Double>("itempitch")
-    private val itemYaw by ConfigDelegate<Double>("itemyaw")
-    private val itemRoll by ConfigDelegate<Double>("itemroll")
-    val cancelReEquip by ConfigDelegate<Boolean>("itemcancelrequip")
-    val swingSpeed by ConfigDelegate<Double>("itemswingspeed")
+@Module
+object ItemAnimations : Feature(
+    "itemAnimations"
+) {
+    private val itemSize by ConfigDelegate<Double>("itemAnimations.itemSize")
+    private val itemX by ConfigDelegate<Double>("itemAnimations.itemX")
+    private val itemY by ConfigDelegate<Double>("itemAnimations.itemY")
+    private val itemZ by ConfigDelegate<Double>("itemAnimations.itemZ")
+    private val itemPitch by ConfigDelegate<Double>("itemAnimations.itemPitch")
+    private val itemYaw by ConfigDelegate<Double>("itemAnimations.itemYaw")
+    private val itemRoll by ConfigDelegate<Double>("itemAnimations.itemRoll")
+    val cancelReEquip by ConfigDelegate<Boolean>("itemAnimations.cancelReEquip")
+    val swingSpeed by ConfigDelegate<Double>("itemAnimations.swingSpeed")
+    val noSwing by ConfigDelegate<Boolean>("itemAnimations.noSwing")
+    val noSwingTerm by ConfigDelegate<Boolean>("itemAnimations.noSwingTerm")
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Item Animations", "Enable item animations", "Visuals", ConfigElement(
-                "itemanimations",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Size", "Item size multiplier", "Size", ConfigElement(
-                "itemsize",
-                ElementType.Slider(-1.0, 2.0, 0.0, true)
-            ))
-            .addFeatureOption("X Position", "Item X position", "Position", ConfigElement(
-                "itemx",
-                ElementType.Slider(-2.0, 2.0, 0.0, true)
-            ))
-            .addFeatureOption("Y Position", "Item Y position", "Position", ConfigElement(
-                "itemy",
-                ElementType.Slider(-2.0, 2.0, 0.0, true)
-            ))
-            .addFeatureOption("Z Position", "Item Z position", "Position", ConfigElement(
-                "itemz",
-                ElementType.Slider(-2.0, 2.0, 0.0, true)
-            ))
-            .addFeatureOption("Pitch", "Item pitch rotation", "Rotation", ConfigElement(
-                "itempitch",
-                ElementType.Slider(-180.0, 180.0, 0.0, true)
-            ))
-            .addFeatureOption("Yaw", "Item yaw rotation", "Rotation", ConfigElement(
-                "itemyaw",
-                ElementType.Slider(-180.0, 180.0, 0.0, true)
-            ))
-            .addFeatureOption("Roll", "Item roll rotation", "Rotation", ConfigElement(
-                "itemroll",
-                ElementType.Slider(-180.0, 180.0, 0.0, true)
-            ))
-            .addFeatureOption("Cancel Re-Equip", "Cancel item re-equip animations", "Other", ConfigElement(
-                    "itemcancelrequip",
+            .addFeature(
+                "Item animations",
+                "Enable item animations",
+                "Visuals",
+                ConfigElement(
+                    "itemAnimations",
                     ElementType.Switch(false)
-            ))
-            .addFeatureOption("Swing Speed", "Item swing speed multiplier", "Other", ConfigElement(
-                    "itemswingspeed",
+                )
+            )
+            .addFeatureOption(
+                "Size",
+                ConfigElement(
+                    "itemAnimations.itemSize",
+                    ElementType.Slider(-1.0, 2.0, 0.0, true)
+                )
+            )
+            .addFeatureOption(
+                "X position",
+                ConfigElement(
+                    "itemAnimations.itemX",
+                    ElementType.Slider(-2.0, 2.0, 0.0, true)
+                )
+            )
+            .addFeatureOption(
+                "Y position",
+                ConfigElement(
+                    "itemAnimations.itemY",
+                    ElementType.Slider(-2.0, 2.0, 0.0, true)
+                )
+            )
+            .addFeatureOption(
+                "Z position",
+                ConfigElement(
+                    "itemAnimations.itemZ",
+                    ElementType.Slider(-2.0, 2.0, 0.0, true)
+                )
+            )
+            .addFeatureOption(
+                "Pitch",
+                ConfigElement(
+                    "itemAnimations.itemPitch",
+                    ElementType.Slider(-180.0, 180.0, 0.0, true)
+                )
+            )
+            .addFeatureOption(
+                "Yaw",
+                ConfigElement(
+                    "itemAnimations.itemYaw",
+                    ElementType.Slider(-180.0, 180.0, 0.0, true)
+                )
+            )
+            .addFeatureOption(
+                "Roll",
+                ConfigElement(
+                    "itemAnimations.itemRoll",
+                    ElementType.Slider(-180.0, 180.0, 0.0, true)
+                )
+            )
+            .addFeatureOption(
+                "Cancel re-equip",
+                ConfigElement(
+                    "itemAnimations.cancelReEquip",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Swing speed",
+                ConfigElement(
+                    "itemAnimations.swingSpeed",
                     ElementType.Slider(-2.0, 1.0, 0.0, true)
-            ))
+                )
+            )
+            .addFeatureOption(
+                "No swing",
+                ConfigElement(
+                    "itemAnimations.noSwing",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "No terminator swing",
+                ConfigElement(
+                    "itemAnimations.noSwingTerm",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
+    @JvmStatic
+    fun noSwingTerm(): Boolean {
+        return noSwingTerm && KnitPlayer.heldItem?.getData(DataTypes.SKYBLOCK_ID)?.id == "TERMINATOR"
+    }
+
+    @JvmStatic
     fun getItemTransform(): ItemTransform {
         return ItemTransform(
             posX = (itemX * 75.0).toFloat() / 100f,

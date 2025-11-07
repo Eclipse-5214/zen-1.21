@@ -1,22 +1,25 @@
 package xyz.meowing.zen.features.qol
 
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.features.Feature
 
-/*
- * Modified from Devonian code
- * Under GPL 3.0 License
- */
-@Zen.Module
-object HideFireOverlay : Feature("hidefireoverlay") {
+@Module
+object HideFireOverlay : Feature(
+    "hideFireOverlay"
+) {
     override fun addConfig() {
         ConfigManager
-            .addFeature("Hide Fire Overlay", "", "QoL", ConfigElement(
-                "hidefireoverlay",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Hide fire overlay",
+                "Hide fire overlay on screen",
+                "QoL",
+                ConfigElement(
+                    "hideFireOverlay",
+                    ElementType.Switch(false)
+                )
+            )
     }
 }

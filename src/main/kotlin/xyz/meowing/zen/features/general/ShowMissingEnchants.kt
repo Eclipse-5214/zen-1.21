@@ -2,31 +2,33 @@ package xyz.meowing.zen.features.general
 
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
-import xyz.meowing.zen.Zen
-import xyz.meowing.zen.api.NEUApi
+import xyz.meowing.zen.api.item.NEUApi
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.InternalEvent
-import xyz.meowing.zen.events.ItemTooltipEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.ItemUtils.extraAttributes
 import xyz.meowing.zen.utils.Utils.removeFormatting
 import net.minecraft.nbt.NbtElement
 import net.minecraft.text.Text
 import org.apache.commons.lang3.StringUtils
-import xyz.meowing.knit.api.KnitChat
 import xyz.meowing.knit.api.input.KnitKeys
-import xyz.meowing.zen.Zen.Companion.LOGGER
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.Zen.LOGGER
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.events.core.InternalEvent
+import xyz.meowing.zen.events.core.ItemTooltipEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
 /**
  * Module contains modified code from NEU
  *
+ * See: [NotEnoughUpdates - ItemTooltipListener.java](https://github.com/NotEnoughUpdates/NotEnoughUpdates/tree/master/src/main/java/io/github/moulberry/notenoughupdates/listener/ItemTooltipListener.java)
  * @author NEU Contributors
- * @see [NotEnoughUpdates - ItemTooltipListener.java](https://github.com/NotEnoughUpdates/NotEnoughUpdates/tree/master/src/main/java/io/github/moulberry/notenoughupdates/listener/ItemTooltipListener.java)
  */
-@Zen.Module
-object ShowMissingEnchants : Feature("showmissingenchants", true) {
+@Module
+object ShowMissingEnchants : Feature(
+    "showMissingEnchants",
+    true
+) {
     private var enchantsData: JsonObject? = null
     private var enchantPools: JsonArray? = null
     private val itemNameRegex = Regex("""\b(?:COMMON|UNCOMMON|RARE|EPIC|LEGENDARY|MYTHIC|SPECIAL|VERY SPECIAL|DIVINE)\b.*\b([A-Z]+)\b""")
@@ -41,10 +43,15 @@ object ShowMissingEnchants : Feature("showmissingenchants", true) {
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Show Missing Enchants", "Show Missing Enchants", "General", ConfigElement(
-                "showmissingenchants",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Show missing enchants",
+                "Show missing enchants on your items",
+                "General",
+                ConfigElement(
+                    "showMissingEnchants",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
     override fun initialize() {
@@ -91,7 +98,7 @@ object ShowMissingEnchants : Feature("showmissingenchants", true) {
 
     override fun onRegister() {
         try {
-            val constants = NEUApi.NeuConstantData.getData().getAsJsonObject("enchants")
+            val constants = NEUApi.neuConstantData.getAsJsonObject("enchants")
             enchantsData = constants?.getAsJsonObject("enchants")
             enchantPools = constants?.getAsJsonArray("enchant_pools")
             LOGGER.info("Loaded enchants in ShowMissingEnchants")

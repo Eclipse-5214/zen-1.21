@@ -1,19 +1,25 @@
 package xyz.meowing.zen.features.dungeons
 
-import xyz.meowing.zen.Zen
 import xyz.meowing.zen.config.ui.types.ElementType
-import xyz.meowing.zen.events.ChatEvent
-import xyz.meowing.zen.events.RenderEvent
-import xyz.meowing.zen.events.WorldEvent
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.Render3D
 import xyz.meowing.zen.utils.Utils.removeFormatting
 import net.minecraft.util.math.Vec3d
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.dungeons.DungeonFloor
+import xyz.meowing.zen.api.location.SkyBlockIsland
+import xyz.meowing.zen.events.core.ChatEvent
+import xyz.meowing.zen.events.core.LocationEvent
+import xyz.meowing.zen.events.core.RenderEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
 
-@Zen.Module
-object ScarfSpawnTimer : Feature("scarfspawntimers", area = "catacombs", subarea = listOf("F2", "M2")) {
+@Module
+object ScarfSpawnTimer : Feature(
+    "scarfSpawnTimers",
+    island = SkyBlockIsland.THE_CATACOMBS,
+    dungeonFloor = listOf(DungeonFloor.F2, DungeonFloor.M2)
+) {
     private var time = 0.0
     private var activeTimers = emptyList<TimerData>()
 
@@ -30,14 +36,19 @@ object ScarfSpawnTimer : Feature("scarfspawntimers", area = "catacombs", subarea
 
     override fun addConfig() {
         ConfigManager
-            .addFeature("Scarf Spawn Timers", "", "Dungeons", ConfigElement(
-                "scarfspawntimers",
-                ElementType.Switch(false)
-            ))
+            .addFeature(
+                "Scarf spawn timers",
+                "Shows spawn timers for Scarf's minions and Scarf in dungeons",
+                "Dungeons",
+                ConfigElement(
+                    "scarfSpawnTimers",
+                    ElementType.Switch(false)
+                )
+            )
     }
 
     override fun initialize() {
-        createCustomEvent<RenderEvent.World>("render") { event ->
+        createCustomEvent<RenderEvent.World.Last>("render") {
             activeTimers.forEach { timer ->
                 val displayTime = time + timer.offset
                 if (displayTime > 0)
@@ -46,6 +57,8 @@ object ScarfSpawnTimer : Feature("scarfspawntimers", area = "catacombs", subarea
         }
 
         register<ChatEvent.Receive> { event ->
+            if (event.isActionBar) return@register
+
             when (event.message.string.removeFormatting()) {
                 "[BOSS] Scarf: If you can beat my Undeads, I'll personally grant you the privilege to replace them." -> {
                     time = 7.75
@@ -60,7 +73,7 @@ object ScarfSpawnTimer : Feature("scarfspawntimers", area = "catacombs", subarea
             }
         }
 
-        register<WorldEvent.Change> { cleanup() }
+        register<LocationEvent.WorldChange> { cleanup() }
     }
 
     private fun startTimer() {

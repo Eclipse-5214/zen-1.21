@@ -23,32 +23,30 @@ import xyz.meowing.knit.api.KnitClient
 import xyz.meowing.knit.api.KnitClient.client
 import xyz.meowing.zen.UpdateChecker
 import xyz.meowing.zen.Zen
-import xyz.meowing.zen.Zen.Companion.features
-import xyz.meowing.zen.Zen.Companion.prefix
-import xyz.meowing.zen.api.EntityDetection.sbMobID
-import xyz.meowing.zen.api.PlayerStats
-import xyz.meowing.zen.config.ui.constraint.ChildHeightConstraint
+import xyz.meowing.zen.Zen.prefix
+import xyz.meowing.zen.api.skyblock.EntityDetection.sbMobID
+import xyz.meowing.zen.api.skyblock.PlayerStats
+import xyz.meowing.zen.ui.constraint.ChildHeightConstraint
 import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.events.EventBus
-import xyz.meowing.zen.events.RenderEvent
-import xyz.meowing.zen.utils.DataUtils
-import xyz.meowing.zen.utils.DungeonUtils
 import xyz.meowing.zen.utils.Render3D
 import xyz.meowing.zen.utils.TickUtils
 import xyz.meowing.knit.api.command.Commodore
-import xyz.meowing.zen.config.ConfigElement
-import xyz.meowing.zen.config.ConfigManager
+import xyz.meowing.zen.annotations.Command
+import xyz.meowing.zen.annotations.Module
+import xyz.meowing.zen.api.dungeons.DungeonAPI
+import xyz.meowing.zen.events.core.RenderEvent
+import xyz.meowing.zen.managers.config.ConfigElement
+import xyz.meowing.zen.managers.config.ConfigManager
+import xyz.meowing.zen.managers.feature.FeatureManager.features
 import java.awt.Color
 import java.text.DecimalFormat
 import kotlin.collections.forEachIndexed
 import kotlin.collections.isNotEmpty
 
-@Zen.Module
+@Module
 object Debug : Feature() {
-    data class PersistentData(var debugmode: Boolean = false)
-    val data = DataUtils("Debug", PersistentData())
-
-    inline val debugmode get() = data.getData().debugmode
+    var debugMode: Boolean by Zen.saveData.boolean("debugMode", false)
 
     init {
         createCustomEvent<RenderEvent.Entity.Post>("mobid") { event ->
@@ -63,85 +61,119 @@ object Debug : Feature() {
             )
         }
 
-        if (debugmode) {
+        if (debugMode) {
             registerEvent("mobid")
         }
     }
 
     override fun addConfig() {
-        if (!debugmode) return
+        if (!debugMode) return
 
         ConfigManager
-            .addFeature("Config Test", "", "Debug", ConfigElement(
-                "debug",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Switch", "Switch test", "Debug", ConfigElement(
-                "test_switch",
-                ElementType.Switch(false)
-            ))
-            .addFeatureOption("Button", "Button test", "Debug", ConfigElement(
-                "test_button",
-                ElementType.Button("Click Me!") {
-                    Zen.LOGGER.info("Button clicked!")
-                }
-            ))
-            .addFeatureOption("Slider", "Slider test", "Debug", ConfigElement(
-                "test_slider",
-                ElementType.Slider(0.0, 100.0, 50.0, false)
-            ))
-            .addFeatureOption("Slider Double", "Slider double test", "Debug", ConfigElement(
-                "test_slider_double",
-                ElementType.Slider(0.0, 10.0, 5.5, true)
-            ))
-            .addFeatureOption("Dropdown", "Dropdown test", "Debug", ConfigElement(
-                "test_dropdown",
-                ElementType.Dropdown(listOf("Option 1", "Option 2", "Option 3", "Option 4"), 0)
-            ))
-            .addFeatureOption("Text Input", "Text input test", "Debug", ConfigElement(
-                "test_textinput",
-                ElementType.TextInput("Default text", "Enter text here...", 50)
-            ))
-            .addFeatureOption("Text Input Empty", "Empty text input test", "Debug", ConfigElement(
-                    "test_textinput_empty",
-                    ElementType.TextInput("", "Type something...", 100)
-            ))
-            .addFeatureOption("Text Paragraph", "Text paragraph test", "Debug", ConfigElement(
-                "test_paragraph",
-                ElementType.TextParagraph("This is a text paragraph element used for displaying information or instructions to the user. It can contain multiple lines of text.")
-            ))
-            .addFeatureOption("Color Picker", "Color picker test", "Debug", ConfigElement(
-                "test_colorpicker",
-                ElementType.ColorPicker(Color(100, 200, 255))
-            ))
-            .addFeatureOption("Keybind", "Keybind test", "Debug", ConfigElement(
-                "test_keybind",
-                ElementType.Keybind(82)
-            ))
-            .addFeatureOption("Multi Checkbox", "Multi checkbox test", "Debug", ConfigElement(
-                "test_multicheckbox",
-                ElementType.MultiCheckbox(
-                    options = listOf("Feature A", "Feature B", "Feature C", "Feature D", "Feature E"),
-                    default = setOf(0, 2)
+            .addFeature(
+                "Config test",
+                "",
+                "Debug",
+                ConfigElement(
+                    "debug",
+                    ElementType.Switch(false)
                 )
-            ))
+            )
+            .addFeatureOption(
+                "Switch",
+                ConfigElement(
+                    "debug.testSwitch",
+                    ElementType.Switch(false)
+                )
+            )
+            .addFeatureOption(
+                "Button",
+                ConfigElement(
+                    "debug.testButton",
+                    ElementType.Button("Click Me!") {
+                        Zen.LOGGER.info("Button clicked!")
+                    }
+                )
+            )
+            .addFeatureOption(
+                "Slider",
+                ConfigElement(
+                    "debug.testSlider",
+                    ElementType.Slider(0.0, 100.0, 50.0, false)
+                )
+            )
+            .addFeatureOption(
+                "Slider double",
+                ConfigElement(
+                    "debug.testSliderDouble",
+                    ElementType.Slider(0.0, 10.0, 5.5, true)
+                )
+            )
+            .addFeatureOption(
+                "Dropdown",
+                ConfigElement(
+                    "debug.testDropdown",
+                    ElementType.Dropdown(listOf("Option 1", "Option 2", "Option 3", "Option 4"), 0)
+                )
+            )
+            .addFeatureOption(
+                "Text input",
+                ConfigElement(
+                    "debug.testTextInput",
+                    ElementType.TextInput("Default text", "Enter text here...", 50)
+                )
+            )
+            .addFeatureOption(
+                "Empty text input",
+                ConfigElement(
+                    "debug.testTextInputEmpty",
+                    ElementType.TextInput("", "Type something...", 100)
+                )
+            )
+            .addFeatureOption(
+                "Text paragraph",
+                ConfigElement(
+                    "debug.testParagraph",
+                    ElementType.TextParagraph("This is a text paragraph element used for displaying information or instructions to the user. It can contain multiple lines of text.")
+                )
+            )
+            .addFeatureOption(
+                "Color picker",
+                ConfigElement(
+                    "debug.testColorPicker",
+                    ElementType.ColorPicker(Color(100, 200, 255))
+                )
+            )
+            .addFeatureOption(
+                "Keybind",
+                ConfigElement(
+                    "debug.testKeybind",
+                    ElementType.Keybind(82)
+                )
+            )
+            .addFeatureOption(
+                "Multi checkbox",
+                ConfigElement(
+                    "debug.testMultiCheckbox",
+                    ElementType.MultiCheckbox(
+                        options = listOf("Feature A", "Feature B", "Feature C", "Feature D", "Feature E"),
+                        default = setOf(0, 2)
+                    )
+                )
+            )
     }
 }
 
-@Zen.Command
+@Command
 object DebugCommand : Commodore("zendebug", "zd") {
     init {
         executable {
             runs { action: String ->
                 when (action.lowercase()) {
                     "toggle" -> {
-                        Debug.data.getData().debugmode = !Debug.data.getData().debugmode
-                        Debug.data.save()
-                        if (Debug.debugmode) {
-                            Debug.registerEvent("mobid")
-                        } else {
-                            Debug.unregisterEvent("mobid")
-                        }
+                        Debug.debugMode = !Debug.debugMode
+
+                        if (Debug.debugMode) Debug.registerEvent("mobid") else Debug.unregisterEvent("mobid")
                         KnitChat.fakeMessage("$prefix §fToggled dev mode. You will need to restart to see the difference in the Config UI")
                     }
                     "stats" -> {
@@ -154,10 +186,9 @@ object DebugCommand : Commodore("zendebug", "zd") {
                     }
                     "dgutils" -> {
                         KnitChat.fakeMessage(
-                            "Crypt Count: ${DungeonUtils.getCryptCount()}\n" +
-                                    "Current Class: ${DungeonUtils.getCurrentClass()} ${DungeonUtils.getCurrentLevel()}\n" +
-                                    "isMage: ${DungeonUtils.isMage()}\n" +
-                                    "Cata: ${DungeonUtils.getCurrentCata()}"
+                            "Crypt Count: ${DungeonAPI.cryptCount}\n" +
+                                    "Current Class: ${DungeonAPI.dungeonClass?.displayName} ${DungeonAPI.classLevel}\n" +
+                                    "Cata: ${DungeonAPI.cataLevel}"
                         )
                     }
                     "regfeats" -> {
@@ -439,27 +470,23 @@ class DebugGui : WindowScreen(ElementaVersion.V2, newGuiScale = 2) {
 
         val dungeonPanel = createStatsPanel()
 
-        createStatRow("Current Class", DungeonUtils.getCurrentClass() ?: "None", theme.accent, dungeonPanel)
-        createStatRow("Class Level", DungeonUtils.getCurrentLevel().toString(), theme.accent2, dungeonPanel)
-        createStatRow("Catacombs Level", DungeonUtils.getCurrentCata().toString(), theme.accent2, dungeonPanel)
-        createStatRow("Crypt Count", DungeonUtils.getCryptCount().toString(), theme.warning, dungeonPanel)
-        createStatRow(
-            "Is Mage", if (DungeonUtils.isMage()) "Yes" else "No",
-            if (DungeonUtils.isMage()) theme.success else theme.danger, dungeonPanel
-        )
+        createStatRow("Current Class", DungeonAPI.dungeonClass?.displayName ?: "None", theme.accent, dungeonPanel)
+        createStatRow("Class Level", DungeonAPI.classLevel.toString(), theme.accent2, dungeonPanel)
+        createStatRow("Catacombs Level", DungeonAPI.cataLevel.toString(), theme.accent2, dungeonPanel)
+        createStatRow("Crypt Count", DungeonAPI.cryptCount.toString(), theme.warning, dungeonPanel)
     }
 
     private fun createEventListenersInfo() {
         createSectionHeader("Event Listeners")
         val eventPanel = createStatsPanel()
-        val eventTypes = EventBus.listeners.keys.sortedBy { it.name }
-        val totalListeners = EventBus.listeners.values.sumOf { it.size }
+        val eventTypes = EventBus.subscribers.keys.sortedBy { it.name }
+        val totalListeners = EventBus.subscribers.values.sumOf { it.size }
 
         createStatRow("Total Event Types", eventTypes.size.toString(), theme.accent, eventPanel)
         createStatRow("Total Listeners", totalListeners.toString(), theme.success, eventPanel)
 
         eventTypes.forEach { eventClass ->
-            val listeners = EventBus.listeners[eventClass] ?: emptySet()
+            val listeners = EventBus.subscribers[eventClass] ?: emptySet()
             val eventName = getFullEventName(eventClass)
             val isExpanded = expandedEvents.contains(eventName)
 
