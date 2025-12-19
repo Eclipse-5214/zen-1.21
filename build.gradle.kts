@@ -45,32 +45,30 @@ dependencies {
     modImplementation("net.fabricmc.fabric-api:fabric-api:${mcData.dependencies.fabric.fabricApiVersion}")
     modImplementation("net.fabricmc:fabric-language-kotlin:${mcData.dependencies.fabric.fabricLanguageKotlinVersion}")
 
-    modImplementation(include("gg.essential:elementa:710")!!)
-
-    modImplementation(include("xyz.meowing:vexel-${mcData}:121")!!)
+    modImplementation(include("xyz.meowing:vexel-${mcData}:126")!!)
 
     modImplementation(include("net.hypixel:mod-api:1.0.1")!!)
     modImplementation(include("maven.modrinth:hypixel-mod-api:1.0.1+build.1+mc1.21")!!)
 
     modImplementation("me.owdding:item-data-fixer:1.0.5", clocheAction)
-    modImplementation("tech.thatgravyboat:skyblock-api:3.0.17") {
+    modImplementation("tech.thatgravyboat:skyblock-api:3.0.23") {
         exclude("me.owdding")
         clocheAction.execute(this)
     }
-    include("tech.thatgravyboat:skyblock-api:3.0.17", clocheAction)
+    include("tech.thatgravyboat:skyblock-api:3.0.23", clocheAction)
 
     when (mcData.version) {
         MinecraftVersions.VERSION_1_21_10 -> {
+            include(modImplementation(group = "earth.terrarium.olympus", name = "olympus-fabric-1.21.9", version = "1.6.2"))
             modImplementation("com.terraformersmc:modmenu:16.0.0-rc.1")
-            modImplementation(include("gg.essential:universalcraft-1.21.9-fabric:430")!!)
         }
         MinecraftVersions.VERSION_1_21_8 -> {
+            include(modImplementation(group = "earth.terrarium.olympus", name = "olympus-fabric-1.21.7", version = "1.5.2"))
             modImplementation("com.terraformersmc:modmenu:15.0.0")
-            modImplementation(include("gg.essential:universalcraft-1.21.7-fabric:430")!!)
         }
         MinecraftVersions.VERSION_1_21_5 -> {
+            include(modImplementation(group = "earth.terrarium.olympus", name = "olympus-fabric-1.21.5", version = "1.3.6"))
             modImplementation("com.terraformersmc:modmenu:14.0.0-rc.2")
-            modImplementation(include("gg.essential:universalcraft-${mcData}:430")!!)
         }
         else -> {}
     }

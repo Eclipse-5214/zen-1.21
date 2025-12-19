@@ -3,20 +3,17 @@ package xyz.meowing.zen.features.general
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import xyz.meowing.zen.api.item.NEUApi
-import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.ItemUtils.extraAttributes
 import xyz.meowing.zen.utils.Utils.removeFormatting
-import net.minecraft.nbt.NbtElement
-import net.minecraft.text.Text
+import net.minecraft.nbt.Tag
+import net.minecraft.network.chat.Component
 import org.apache.commons.lang3.StringUtils
 import xyz.meowing.knit.api.input.KnitKeys
 import xyz.meowing.zen.Zen.LOGGER
 import xyz.meowing.zen.annotations.Module
 import xyz.meowing.zen.events.core.InternalEvent
 import xyz.meowing.zen.events.core.ItemTooltipEvent
-import xyz.meowing.zen.managers.config.ConfigElement
-import xyz.meowing.zen.managers.config.ConfigManager
 
 /**
  * Module contains modified code from NEU
@@ -27,32 +24,22 @@ import xyz.meowing.zen.managers.config.ConfigManager
 @Module
 object ShowMissingEnchants : Feature(
     "showMissingEnchants",
-    true
+    "Show missing enchants",
+    "Show missing enchants on your items",
+    "General",
+    skyblockOnly = true
 ) {
     private var enchantsData: JsonObject? = null
     private var enchantPools: JsonArray? = null
     private val itemNameRegex = Regex("""\b(?:COMMON|UNCOMMON|RARE|EPIC|LEGENDARY|MYTHIC|SPECIAL|VERY SPECIAL|DIVINE)\b.*\b([A-Z]+)\b""")
     private val poolIgnoreCache = mutableMapOf<Set<String>, Set<String>>()
     private val itemEnchantCache = mutableMapOf<String, JsonArray?>()
-    private val tooltipCache = mutableMapOf<ItemCacheKey, List<Text>>()
+    private val tooltipCache = mutableMapOf<ItemCacheKey, List<Component>>()
 
     data class ItemCacheKey(
         val itemUuid: String,
         val enchantIds: Set<String>
     )
-
-    override fun addConfig() {
-        ConfigManager
-            .addFeature(
-                "Show missing enchants",
-                "Show missing enchants on your items",
-                "General",
-                ConfigElement(
-                    "showMissingEnchants",
-                    ElementType.Switch(false)
-                )
-            )
-    }
 
     override fun initialize() {
         register<InternalEvent.NeuAPI.Load> {
@@ -62,9 +49,9 @@ object ShowMissingEnchants : Feature(
         register<ItemTooltipEvent> { event ->
             if (!KnitKeys.KEY_LEFT_SHIFT.isPressed || enchantsData == null || enchantPools == null) return@register
             val extraAttributes = event.stack.extraAttributes ?: return@register
-            if (extraAttributes.get("enchantments")?.type != NbtElement.COMPOUND_TYPE) return@register
+            if (extraAttributes.get("enchantments")?.id != Tag.TAG_COMPOUND) return@register
             val enchantments = extraAttributes.getCompound("enchantments").orElse(null) ?: return@register
-            val enchantIds = enchantments.keys
+            val enchantIds = enchantments.keySet()
             if (enchantIds.isEmpty()) return@register
             val itemUUID = extraAttributes.getString("uuid")
             if (itemUUID.isEmpty) return@register
@@ -118,7 +105,7 @@ object ShowMissingEnchants : Feature(
         return ignoreFromPool
     }
 
-    private fun getItemEnchantsFromCache(tooltip: List<Text>): JsonArray? {
+    private fun getItemEnchantsFromCache(tooltip: List<Component>): JsonArray? {
         val itemName = extractItemNameFromTooltip(tooltip.map { it.string }) ?: return null
         if (enchantsData == null) return null
 
@@ -147,12 +134,12 @@ object ShowMissingEnchants : Feature(
         return null
     }
 
-    private fun hasEnchantInTooltip(tooltip: List<Text>, enchantIds: Set<String>): Boolean {
+    private fun hasEnchantInTooltip(tooltip: List<Component>, enchantIds: Set<String>): Boolean {
         val enchantNames by lazy { enchantIds.map { StringUtils.capitalize(it.replace("_", " ")) } }
         return tooltip.any { line -> enchantNames.any { line.string.contains(it, true) } }
     }
 
-    private fun findEmptyLineAfterEnchants(tooltip: List<Text>, enchantIds: Set<String>): Int {
+    private fun findEmptyLineAfterEnchants(tooltip: List<Component>, enchantIds: Set<String>): Int {
         val enchantNames by lazy { enchantIds.map { StringUtils.capitalize(it.replace("_", " ")) } }
         var foundEnchantSection = false
 
@@ -167,9 +154,9 @@ object ShowMissingEnchants : Feature(
         return -1
     }
 
-    private fun addMissingEnchantsToTooltip(tooltip: MutableList<Text>, missing: List<String>, insertIndex: Int) {
-        val lines = mutableListOf<Text>()
-        lines.add(Text.of(""))
+    private fun addMissingEnchantsToTooltip(tooltip: MutableList<Component>, missing: List<String>, insertIndex: Int) {
+        val lines = mutableListOf<Component>()
+        lines.add(Component.nullToEmpty(""))
 
         val sb = StringBuilder("§cMissing: ")
         var lineLength = 9
@@ -180,7 +167,7 @@ object ShowMissingEnchants : Feature(
             val newLength = lineLength + separator.length + enchantName.length
 
             if (index > 0 && newLength > 40) {
-                lines.add(Text.of(sb.toString()))
+                lines.add(Component.nullToEmpty(sb.toString()))
                 sb.clear().append("§7$enchantName")
                 lineLength = enchantName.length
             } else {
@@ -189,7 +176,7 @@ object ShowMissingEnchants : Feature(
             }
         }
 
-        if (sb.isNotEmpty()) lines.add(Text.of(sb.toString()))
+        if (sb.isNotEmpty()) lines.add(Component.nullToEmpty(sb.toString()))
         tooltip.addAll(insertIndex, lines)
     }
 }

@@ -13,7 +13,7 @@ import xyz.meowing.knit.api.KnitClient.client
 import xyz.meowing.knit.api.scheduler.TickScheduler
 import xyz.meowing.zen.api.data.StoredFile
 import xyz.meowing.zen.config.ui.ClickGUI
-import xyz.meowing.zen.config.ui.types.ElementType
+import xyz.meowing.zen.config.ui.elements.base.ElementType
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.managers.feature.FeatureManager
 import xyz.meowing.zen.utils.Utils.toColorFromMap
@@ -112,9 +112,7 @@ object ConfigManager {
     }
 
     fun createConfigUI() {
-        configUI = ClickGUI()
-
-        FeatureManager.features.forEach { it.addConfig() }
+        configUI = ClickGUI
     }
 
     fun executePending() {

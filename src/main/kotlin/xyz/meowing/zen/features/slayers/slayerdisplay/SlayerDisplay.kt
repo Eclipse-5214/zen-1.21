@@ -1,37 +1,36 @@
 package xyz.meowing.zen.features.slayers.slayerdisplay
 
-import xyz.meowing.zen.config.ConfigDelegate
-import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.features.slayers.carrying.CarryCounter
 import xyz.meowing.zen.utils.Render3D
-import xyz.meowing.zen.utils.Utils
-import xyz.meowing.zen.utils.Utils.baseMaxHealth
-import xyz.meowing.zen.utils.Utils.removeFormatting
-import net.minecraft.entity.Entity
-import net.minecraft.entity.LivingEntity
-import net.minecraft.entity.decoration.ArmorStandEntity
-import net.minecraft.entity.mob.BlazeEntity
-import net.minecraft.util.math.Vec3d
+import net.minecraft.world.entity.Entity
+import net.minecraft.world.entity.LivingEntity
+import net.minecraft.world.entity.decoration.ArmorStand
+import net.minecraft.world.entity.monster.Blaze
+import net.minecraft.world.phys.Vec3
 import xyz.meowing.knit.api.KnitClient.world
 import xyz.meowing.knit.api.KnitPlayer.player
+import xyz.meowing.knit.api.utils.StringUtils.decodeRoman
 import xyz.meowing.zen.annotations.Module
 import xyz.meowing.zen.events.configRegister
 import xyz.meowing.zen.events.core.EntityEvent
 import xyz.meowing.zen.events.core.LocationEvent
 import xyz.meowing.zen.events.core.RenderEvent
 import xyz.meowing.zen.events.core.TickEvent
-import xyz.meowing.zen.managers.config.ConfigElement
-import xyz.meowing.zen.managers.config.ConfigManager
+import xyz.meowing.zen.utils.Utils.removeFormatting
+import xyz.meowing.zen.utils.baseMaxHealth
 
 @Module
 object SlayerDisplay : Feature(
     "slayerDisplay",
-    true
+    "Slayer display",
+    "Shows slayer boss information",
+    "Slayers",
+    skyblockOnly = true
 ) {
     private val slayerEntities = mutableMapOf<Int, SlayerData>()
     private val nametagData = mutableMapOf<Int, String>()
-    private val killTimers = mutableMapOf<Int, Triple<Long, String, Vec3d>>()
+    private val killTimers = mutableMapOf<Int, Triple<Long, String, Vec3>>()
     private val hiddenArmorStands = mutableSetOf<Int>()
 
     private val slayerMobRegex = "(?<=☠\\s)[A-Za-z]+\\s[A-Za-z]+(?:\\s[IVX]+)?".toRegex()
@@ -39,83 +38,17 @@ object SlayerDisplay : Feature(
     private val hitsRegex = "(\\d+)\\s+Hits".toRegex()
     private val timeRegex = "(\\d+):(\\d+)".toRegex()
 
-    private val useFullName by ConfigDelegate<Boolean>("slayerDisplay.useFullName")
-    private val displayOptions by ConfigDelegate<Set<Int>>("slayerDisplay.options")
-    private val shownBossesOption by ConfigDelegate<Int>("slayerDisplay.forBossType")
-    private val showKillTimer by ConfigDelegate<Boolean>("slayerDisplay.showKillTime")
-    private val hideOriginalNametags by ConfigDelegate<Boolean>("slayerDisplay.hideNametags")
+    private val useFullName by config.switch("Use full name")
+    private val displayOptions by config.multiCheckbox("Display options", listOf("Show mob name", "Show health", "Show hits", "Show laser timer", "Show timer nametag", "Compact Display"), setOf(0, 1, 2, 3, 4))
+    private val shownBossesOption by config.dropdown("Show for", listOf("Show all", "Show carries only", "Show own only", "Show own and carries"))
+    private val showKillTime by config.switch("Show kill time", true)
+    private val hideNametags by config.switch("Hide original nametags")
 
     private data class SlayerData(
         val spawnTime: Long,
         var displayText: String = "",
         var bossType: BossTypes? = null
     )
-
-    override fun addConfig() {
-        ConfigManager
-            .addFeature(
-                "Slayer display",
-                "Shows slayer boss information",
-                "Slayers",
-                ConfigElement(
-                    "slayerDisplay",
-                    ElementType.Switch(false)
-                )
-            )
-            .addFeatureOption(
-                "Show For",
-                ConfigElement(
-                    "slayerDisplay.forBossType",
-                    ElementType.Dropdown(
-                        listOf(
-                            "Show all",
-                            "Show carries only",
-                            "Show own only",
-                            "Show own and carries"
-                        ),
-                        0
-                    )
-                )
-            )
-            .addFeatureOption(
-                "Display Options",
-                ConfigElement(
-                    "slayerDisplay.options",
-                    ElementType.MultiCheckbox(
-                        listOf(
-                            "Show mob name",
-                            "Show health",
-                            "Show hits",
-                            "Show laser timer",
-                            "Show timer nametag",
-                            "Compact Display"
-                        ),
-                        setOf(0, 1, 2, 3, 4)
-                    )
-                )
-            )
-            .addFeatureOption(
-                "Use full name",
-                ConfigElement(
-                    "slayerDisplay.useFullName",
-                    ElementType.Switch(false)
-                )
-            )
-            .addFeatureOption(
-                "Show kill time",
-                ConfigElement(
-                    "slayerDisplay.showKillTime",
-                    ElementType.Switch(true)
-                )
-            )
-            .addFeatureOption(
-                "Hide nametags",
-                ConfigElement(
-                    "slayerDisplay.hideNametags",
-                    ElementType.Switch(false)
-                )
-            )
-    }
 
     override fun initialize() {
         register<LocationEvent.WorldChange> {
@@ -142,12 +75,12 @@ object SlayerDisplay : Feature(
                     }
                 }
 
-                if (hideOriginalNametags && shouldShowSlayer(slayerEntityId)) {
+                if (hideNametags && shouldShowSlayer(slayerEntityId)) {
                     hiddenArmorStands.addAll(listOf(entityId, entityId + 1, entityId + 2))
                 }
             }
 
-            if (hideOriginalNametags && isSlayerRelatedNametag(entityId)) {
+            if (hideNametags && isSlayerRelatedNametag(entityId)) {
                 val slayerEntityId = entityId - 1
                 if (slayerEntities.containsKey(slayerEntityId) && shouldShowSlayer(slayerEntityId)) {
                     hiddenArmorStands.add(entityId)
@@ -163,7 +96,7 @@ object SlayerDisplay : Feature(
         }
 
         configRegister<RenderEvent.Entity.Pre>(listOf("slayerDisplay", "slayerDisplay.hideNametags"), priority = 1000, skyblockOnly = true) { event ->
-            if (event.entity is ArmorStandEntity && hiddenArmorStands.contains(event.entity.id)) {
+            if (event.entity is ArmorStand && hiddenArmorStands.contains(event.entity.id)) {
                 event.cancel()
             }
         }
@@ -181,17 +114,13 @@ object SlayerDisplay : Feature(
             val entityId = event.entity.id
 
             slayerEntities[entityId]?.let { slayerData ->
-                if (showKillTimer) {
+                if (showKillTime) {
                     val killTime = System.currentTimeMillis() - slayerData.spawnTime
                     val killTimeText = "§a${"%.1f".format(killTime / 1000.0)}s"
                     killTimers[entityId] = Triple(
                         System.currentTimeMillis(),
                         killTimeText,
-                        //#if MC >= 1.21.9
-                        //$$ event.entity.entityPos
-                        //#else
-                        event.entity.pos
-                        //#endif
+                        event.entity.position()
                     )
                 }
             }
@@ -204,7 +133,7 @@ object SlayerDisplay : Feature(
         }
 
         register<RenderEvent.Entity.Post> { event ->
-            if (event.entity is BlazeEntity || event.entity is ArmorStandEntity) return@register
+            if (event.entity is Blaze || event.entity is ArmorStand) return@register
             val entityId = event.entity.id
             val slayerEntityId = entityId - 1
 
@@ -217,14 +146,10 @@ object SlayerDisplay : Feature(
             }
 
             displayText?.takeIf { it.isNotEmpty() }?.let {
-                val depth = player?.canSee(event.entity) != true
+                val depth = player?.hasLineOfSight(event.entity) != true
                 Render3D.drawString(
                     it,
-                    //#if MC >= 1.21.9
-                    //$$ event.entity.entityPos.add(0.0, yOffset, 0.0),
-                    //#else
-                    event.entity.pos.add(0.0, yOffset, 0.0),
-                    //#endif
+                    event.entity.position().add(0.0, yOffset, 0.0),
                     depth = depth,
                     scaleMultiplier = 1.5,
                     smallestDistanceView = 8.0
@@ -258,7 +183,7 @@ object SlayerDisplay : Feature(
 
         getBossType(cleanName)?.let { slayerData.bossType = it }
         val bossType = slayerData.bossType ?: return
-        val entity = world?.getEntityById(slayerEntityId)
+        val entity = world?.getEntity(slayerEntityId)
 
         val hpMatch = hpRegex.find(cleanName)
         val hitsMatch = hitsRegex.find(cleanName)
@@ -398,7 +323,7 @@ object SlayerDisplay : Feature(
         val slayerMatch = slayerMobRegex.find(cleanName.removeFormatting().replace(",", "")) ?: return null
         val matchedName = slayerMatch.value
         val baseName = matchedName.substringBeforeLast(" ")
-        val tier = Utils.decodeRoman(matchedName.substringAfterLast(" ")).toString()
+        val tier = matchedName.substringAfterLast(" ").decodeRoman().toString()
 
         return BossTypes.entries.find { boss ->
             val bossClean = boss.fullName.removeFormatting()
@@ -429,7 +354,7 @@ object SlayerDisplay : Feature(
         if (3 !in displayOptions) return ""
 
         val ridingEntity = entity.vehicle ?: return ""
-        val time = maxOf(0.0, 8.2 - (ridingEntity.age / 20.0))
+        val time = maxOf(0.0, 8.2 - (ridingEntity.tickCount / 20.0))
         val color = when {
             time > 6.0 -> "§a"
             time > 3.0 -> "§e"

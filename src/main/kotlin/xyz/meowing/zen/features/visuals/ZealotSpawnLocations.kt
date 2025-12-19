@@ -1,33 +1,31 @@
 package xyz.meowing.zen.features.visuals
 
-import xyz.meowing.zen.config.ConfigDelegate
-import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.features.ClientTick
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.utils.Render3D
 import xyz.meowing.zen.utils.SimpleTimeMark
 import xyz.meowing.zen.utils.TimeUtils.fromNow
 import xyz.meowing.zen.utils.TimeUtils.millis
-import xyz.meowing.zen.utils.Utils.toFormattedDuration
-import net.minecraft.util.math.BlockPos
-import net.minecraft.util.math.Box
-import net.minecraft.util.math.Vec3d
+import net.minecraft.core.BlockPos
+import net.minecraft.world.phys.AABB
+import net.minecraft.world.phys.Vec3
+import xyz.meowing.knit.api.utils.NumberUtils.toDuration
 import xyz.meowing.zen.annotations.Module
 import xyz.meowing.zen.api.location.SkyBlockAreas
 import xyz.meowing.zen.api.location.SkyBlockIsland
 import xyz.meowing.zen.events.core.RenderEvent
 import xyz.meowing.zen.events.core.SkyblockEvent
-import xyz.meowing.zen.managers.config.ConfigElement
-import xyz.meowing.zen.managers.config.ConfigManager
-import java.awt.Color
 import kotlin.time.Duration.Companion.seconds
 
 @Module
 object ZealotSpawnLocations : Feature(
     "zealotSpawnVisual",
-    true,
-    SkyBlockIsland.THE_END,
-    listOf(SkyBlockAreas.ZEALOT_BRUISER_HIDEOUT, SkyBlockAreas.DRAGONS_NEST)
+    "Zealot spawn locations",
+    "Shows locations where zealots will spawn",
+    "Visuals",
+    skyblockOnly = true,
+    island = SkyBlockIsland.THE_END,
+    area = listOf(SkyBlockAreas.ZEALOT_BRUISER_HIDEOUT, SkyBlockAreas.DRAGONS_NEST)
 ) {
     private val zealotSpawns: List<BlockPos> = listOf(
         BlockPos(-646, 5, -274),
@@ -74,42 +72,14 @@ object ZealotSpawnLocations : Feature(
     private var spawnTime = SimpleTimeMark(0)
     private var displayText = "§dZealot Spawn: §510s"
 
-    private val drawZealotSpawnBox by ConfigDelegate<Boolean>("zealotSpawnVisual.drawBox")
-    private val zealotSpawnColor by ConfigDelegate<Color>("zealotSpawnVisual.color")
-
-    override fun addConfig() {
-        ConfigManager
-            .addFeature(
-                "Zealot spawn locations",
-                "",
-                "Visuals",
-                ConfigElement(
-                    "zealotSpawnVisual",
-                    ElementType.Switch(false)
-                )
-            )
-            .addFeatureOption(
-                "Zealot spawn location boxes",
-                ConfigElement(
-                    "zealotSpawnVisual.drawBox",
-                    ElementType.Switch(false)
-                )
-            )
-            .addFeatureOption(
-                "Box color",
-                ConfigElement(
-                    "zealotSpawnVisual.color",
-                    ElementType.ColorPicker(Color(0, 255, 255, 127))
-                )
-            )
-    }
-
+    private val drawBox by config.switch("Spawn boxes")
+    private val color by config.colorPicker("Box color")
 
     override fun initialize() {
         setupLoops {
             loop<ClientTick>(10) {
                 val timeUntilSpawn = spawnTime.until
-                val remaining = if (timeUntilSpawn.isPositive() && timeUntilSpawn.millis > 1000) timeUntilSpawn.millis.toFormattedDuration() else "§aReady"
+                val remaining = if (timeUntilSpawn.isPositive() && timeUntilSpawn.millis > 1000) timeUntilSpawn.millis.toDuration() else "§aReady"
                 val mobType = if (SkyBlockAreas.DRAGONS_NEST.inArea()) "Zealot" else "Bruiser"
                 displayText = "§d$mobType Spawn: §5$remaining"
             }
@@ -128,11 +98,11 @@ object ZealotSpawnLocations : Feature(
         register<RenderEvent.World.Last> { event ->
             val positions = if (SkyBlockAreas.DRAGONS_NEST.inArea()) zealotSpawns else bruiserSpawns
             positions.forEach { pos ->
-                val aabb = Box(pos.x - 5.0, pos.y + 0.1, pos.z - 5.0, pos.x + 5.0, pos.y - 3.0, pos.z + 5.0)
-                if (drawZealotSpawnBox) Render3D.drawSpecialBB(aabb, zealotSpawnColor, event.context.consumers(), event.context.matrixStack())
+                val aabb = AABB(pos.x - 5.0, pos.y + 0.1, pos.z - 5.0, pos.x + 5.0, pos.y - 3.0, pos.z + 5.0)
+                if (drawBox) Render3D.drawSpecialBB(aabb, color, event.context.consumers(), event.context.matrixStack())
                 Render3D.drawString(
                     displayText,
-                    Vec3d(pos).add(0.0, 1.5, 0.0),
+                    Vec3(pos).add(0.0, 1.5, 0.0),
                     -1
                 )
             }

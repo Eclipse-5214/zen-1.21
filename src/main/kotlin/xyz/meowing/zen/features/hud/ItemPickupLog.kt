@@ -1,55 +1,35 @@
 package xyz.meowing.zen.features.hud
 
 import xyz.meowing.zen.api.item.ItemAPI
-import xyz.meowing.zen.config.ConfigDelegate
-import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.features.Feature
 import xyz.meowing.zen.hud.HUDManager
 import xyz.meowing.zen.utils.ItemUtils.skyblockID
 import xyz.meowing.zen.utils.Render2D
-import xyz.meowing.zen.utils.Utils.abbreviateNumber
-import xyz.meowing.zen.utils.Utils.formatNumber
 import xyz.meowing.zen.utils.Utils.getRegexGroups
-import net.minecraft.client.gui.DrawContext
-import net.minecraft.item.ItemStack
-import net.minecraft.network.packet.s2c.play.ScreenHandlerSlotUpdateS2CPacket
+import net.minecraft.client.gui.GuiGraphics
+import net.minecraft.world.item.ItemStack
+import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket
+import xyz.meowing.knit.api.KnitClient
 import xyz.meowing.knit.api.KnitPlayer.player
+import xyz.meowing.knit.api.utils.NumberUtils.abbreviate
+import xyz.meowing.knit.api.utils.NumberUtils.formatWithCommas
 import xyz.meowing.zen.annotations.Module
 import xyz.meowing.zen.events.core.GuiEvent
 import xyz.meowing.zen.events.core.PacketEvent
-import xyz.meowing.zen.managers.config.ConfigElement
-import xyz.meowing.zen.managers.config.ConfigManager
 import java.awt.Color
 import kotlin.math.abs
 
 @Module
 object ItemPickupLog : Feature(
-    "itempickuplog"
+    "itemPickupLog",
+    "Item pickup log",
+    "Display picked up items on HUD",
+    "HUD",
 ) {
     private const val NAME = "Item Pickup Log"
     private var ignoreStacksRegex = listOf("""^§8Quiver.*""".toRegex(), """^§aSkyBlock Menu §7\(Click\)""".toRegex(), """^§bMagical Map""".toRegex())
     private val npcSellingStackRegex = """(.*) §8x\d+""".toRegex()
-    private val abbreviateNumbers by ConfigDelegate<Boolean>("itemPickupLog.abbreviate")
-
-    override fun addConfig() {
-        ConfigManager
-            .addFeature(
-                "Item pickup log",
-                "Display picked up items on HUD",
-                "HUD",
-                ConfigElement(
-                    "itemPickupLog",
-                    ElementType.Switch(false)
-                )
-            )
-            .addFeatureOption(
-                "Abbreviate numbers",
-                ConfigElement(
-                    "itemPickupLog.abbreviate",
-                    ElementType.Switch(false)
-                )
-            )
-    }
+    private val abbreviate by config.switch("Abbreviate numbers")
 
     private var previousInventory = mutableMapOf<String, Int>()
     private var currentInventory = mutableMapOf<String, Int>()
@@ -57,22 +37,22 @@ object ItemPickupLog : Feature(
     var displayLines = mutableMapOf<String, PickupEntry>()
 
     override fun initialize() {
-        HUDManager.register(NAME, "§a+5 §fPotato §6$16\n§c-4 §fHay Bale §6$54")
+        HUDManager.register(NAME, "§a+5 §fPotato §6$16\n§c-4 §fHay Bale §6$54", "itemPickupLog")
 
         register<PacketEvent.ReceivedPost> { event ->
-            if (event.packet is ScreenHandlerSlotUpdateS2CPacket) {
+            if (event.packet is ClientboundContainerSetSlotPacket) {
                 currentInventory = getCurrentInventoryState()?.toMutableMap() ?: return@register
                 compareInventories(previousInventory, currentInventory)
                 previousInventory = currentInventory
             }
         }
 
-        register<GuiEvent.Render.HUD> { event ->
-            if (HUDManager.isEnabled(NAME)) render(event.context)
+        register<GuiEvent.Render.HUD.Pre> { event ->
+            if (KnitClient.player != null) render(event.context)
         }
     }
 
-    private fun render(context: DrawContext) {
+    private fun render(context: GuiGraphics) {
         val x = HUDManager.getX(NAME)
         val y = HUDManager.getY(NAME)
         val scale = HUDManager.getScale(NAME)
@@ -89,14 +69,14 @@ object ItemPickupLog : Feature(
             if (alpha <= 0) return@forEachIndexed
 
             val colorSymbol = if (entry.count < 0) "§c-" else "§3+"
-            val count = if (abbreviateNumbers) abs(entry.count).abbreviateNumber() else abs(entry.count).formatNumber()
+            val count = if (abbreviate) abs(entry.count).abbreviate() else abs(entry.count).formatWithCommas()
             var display = "$colorSymbol$count §e${entry.itemName}"
 
             val priceInfo = ItemAPI.getItemInfo(entry.itemId)
             val price = (priceInfo?.get("bazaarSell")?.asDouble ?: priceInfo?.get("lowestBin")?.asDouble ?: 0.0) * entry.count
 
             if (price != 0.0) {
-                val formattedPrice = if (abbreviateNumbers) abs(price).abbreviateNumber() else abs(price).formatNumber()
+                val formattedPrice = if (abbreviate) abs(price).abbreviate() else abs(price).formatWithCommas()
                 display += " §6$$formattedPrice"
             }
 
@@ -113,7 +93,7 @@ object ItemPickupLog : Feature(
 
         loop@ for (element in mainInventory) {
             if (element == null) continue
-            var displayName = element.name.string ?: "Empty slot"
+            var displayName = element.hoverName.string ?: "Empty slot"
 
             for (regex in ignoreStacksRegex) {
                 if (displayName.matches(regex)) {

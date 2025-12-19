@@ -1,9 +1,6 @@
 package xyz.meowing.zen.features.mining
 
 import xyz.meowing.zen.annotations.Module
-import xyz.meowing.zen.managers.config.ConfigElement
-import xyz.meowing.zen.managers.config.ConfigManager
-import xyz.meowing.zen.config.ui.types.ElementType
 import xyz.meowing.zen.events.core.GuiEvent
 import xyz.meowing.zen.events.core.TablistEvent
 import xyz.meowing.zen.features.Feature
@@ -15,32 +12,22 @@ import xyz.meowing.zen.utils.ScoreboardUtils
 @Module
 object CommissionDisplay : Feature(
     "commissionDisplay",
+    "Commission display",
+    "Display active commissions",
+    "Mining",
     skyblockOnly = true
 ) {
     private const val NAME = "Commissions"
     private val commissions = mutableListOf<String>()
     private val hasData get() = commissions.isNotEmpty()
 
-    override fun addConfig() {
-        ConfigManager
-            .addFeature(
-                "Commission display",
-                "Display active commissions",
-                "Mining",
-                ConfigElement(
-                    "commissionDisplay",
-                    ElementType.Switch(false)
-                )
-            )
-    }
-
     override fun initialize() {
-        HUDManager.register(NAME, "§9§lCommissions:\n§fGoblin Slayer: §c0%")
+        HUDManager.register(NAME, "§9§lCommissions:\n§fGoblin Slayer: §c0%", "commissionDisplay")
 
         register<TablistEvent.Change> { parseTablist() }
 
-        register<GuiEvent.Render.HUD> { event ->
-            if (HUDManager.isEnabled(NAME) && hasData) {
+        register<GuiEvent.Render.HUD.Pre> { event ->
+            if (hasData) {
                 val x = HUDManager.getX(NAME)
                 val y = HUDManager.getY(NAME)
                 val scale = HUDManager.getScale(NAME)

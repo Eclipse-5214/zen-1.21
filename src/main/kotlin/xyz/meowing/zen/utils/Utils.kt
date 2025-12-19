@@ -1,27 +1,22 @@
 package xyz.meowing.zen.utils
 
-import gg.essential.elementa.UIComponent
-import gg.essential.elementa.components.UIBlock
-import gg.essential.elementa.components.UIRoundedRectangle
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
-import net.minecraft.client.MinecraftClient
-import net.minecraft.client.gui.screen.ingame.HandledScreen
-import net.minecraft.entity.LivingEntity
-import net.minecraft.entity.attribute.EntityAttributes
-import net.minecraft.screen.GenericContainerScreenHandler
-import net.minecraft.sound.SoundEvent
-import net.minecraft.text.MutableText
-import net.minecraft.text.OrderedText
-import net.minecraft.text.Style
-import net.minecraft.text.Text
-import org.apache.commons.lang3.SystemUtils
+import net.minecraft.ChatFormatting
+import net.minecraft.client.Minecraft
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen
+import net.minecraft.world.inventory.ChestMenu
+import net.minecraft.sounds.SoundEvent
+import net.minecraft.network.chat.MutableComponent
+import net.minecraft.util.FormattedCharSequence
+import net.minecraft.network.chat.Style
+import net.minecraft.network.chat.Component
 import xyz.meowing.knit.api.KnitClient.client
+import xyz.meowing.knit.api.input.KnitInputs
 import java.awt.Color
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import java.util.Optional
-import kotlin.math.absoluteValue
 
 object Utils {
     private val emoteRegex = "[^\\u0000-\\u007F]".toRegex()
@@ -35,11 +30,26 @@ object Utils {
         1000000000000000000L to "e"
     )
 
-    inline val partialTicks get() = client.renderTickCounter.getTickProgress(true)
+    inline val partialTicks get() = client.deltaTracker.getGameTimeDeltaPartialTick(true)
     inline val window get() = client.window
 
     fun playSound(sound: SoundEvent, volume: Float, pitch: Float) {
-        MinecraftClient.getInstance().player?.playSound(sound, volume, pitch)
+        Minecraft.getInstance().player?.playSound(sound, volume, pitch)
+    }
+
+    fun getKeyName(keyCode: Int): String {
+        return when {
+            keyCode == 0 -> "None"
+            keyCode < 0 -> {
+                when (val button = -keyCode - 1) {
+                    0 -> "LMB"
+                    1 -> "RMB"
+                    2 -> "MMB"
+                    else -> "Mouse ${button + 1}"
+                }
+            }
+            else -> KnitInputs.getDisplayName(keyCode)
+        }
     }
 
     fun String?.removeFormatting(): String {
@@ -67,9 +77,9 @@ object Utils {
         return if (scaled < 100 && scaled % 10 != 0L) "${scaled / 10.0}$suffix" else "${scaled / 10}$suffix"
     }
 
-    inline val HandledScreen<*>.chestName: String get() {
-        val screenHandler = this.screenHandler
-        if (screenHandler !is GenericContainerScreenHandler) return ""
+    inline val AbstractContainerScreen<*>.chestName: String get() {
+        val screenHandler = this.menu
+        if (screenHandler !is ChestMenu) return ""
         return this.title.string.trim()
     }
 
@@ -109,53 +119,11 @@ object Utils {
         }
     }
 
-    fun decodeRoman(roman: String): Int {
-        val values = mapOf('I' to 1, 'V' to 5, 'X' to 10, 'L' to 50, 'C' to 100, 'D' to 500, 'M' to 1000)
-        var result = 0
-        var prev = 0
-
-        for (char in roman.reversed()) {
-            val current = values[char] ?: 0
-            if (current < prev) result -= current
-            else result += current
-            prev = current
-        }
-        return result
-    }
-
-    fun Long.toFormattedDuration(short: Boolean = false): String {
-        val seconds = this / 1000
-        val days = seconds / 86400
-        val hours = (seconds % 86400) / 3600
-        val minutes = (seconds % 3600) / 60
-        val remainingSeconds = seconds % 60
-
-        if (short) {
-            return when {
-                days > 0 -> "${days}d"
-                hours > 0 -> "${hours}h"
-                minutes > 0 -> "${minutes}m"
-                else -> "${remainingSeconds}s"
-            }
-        }
-
-        return buildString {
-            if (days > 0) append("${days}d ")
-            if (hours > 0) append("${hours}h ")
-            if (minutes > 0) append("${minutes}m ")
-            if (remainingSeconds > 0) append("${remainingSeconds}s")
-        }.trimEnd()
-    }
-
-    fun createBlock(radius: Float = 0f): UIComponent {
-        return if (SystemUtils.IS_OS_MAC_OSX) UIBlock() else UIRoundedRectangle(radius)
-    }
-
     /*
      * Modified code from Aaron's Mod
      * https://github.com/AzureAaron/aaron-mod/blob/master/src/main/java/net/azureaaron/mod/utils/TextTransformer.java
      */
-    fun replaceMultipleEntriesInText(text: Text, replacements: Object2ObjectLinkedOpenHashMap<String, Text>): Text {
+    fun replaceMultipleEntriesInText(text: Component, replacements: Object2ObjectLinkedOpenHashMap<String, Component>): Component {
         if (replacements.isEmpty())
             return text
 
@@ -165,7 +133,7 @@ object Utils {
         if (contentLength == 0)
             return text
 
-        data class ReplacementEntry(val target: String, val replacement: Text, val targetLen: Int)
+        data class ReplacementEntry(val target: String, val replacement: Component, val targetLen: Int)
 
         val entries = ArrayList<ReplacementEntry>(replacements.size)
         var hasAnyMatch = false
@@ -192,7 +160,7 @@ object Utils {
             Optional.empty<Any>()
         }, Style.EMPTY)
 
-        val result = Text.empty() as MutableText
+        val result = Component.empty() as MutableComponent
         var idx = 0
 
         while (idx < contentLength && idx < styledChars.size) {
@@ -211,7 +179,7 @@ object Utils {
 
             if (!found) {
                 val styledChar = styledChars[idx]
-                result.append(Text.literal(String(Character.toChars(content.codePointAt(idx)))).setStyle(styledChar.style))
+                result.append(Component.literal(String(Character.toChars(content.codePointAt(idx)))).setStyle(styledChar.style))
                 idx++
             }
 
@@ -220,7 +188,7 @@ object Utils {
         return result
     }
 
-    fun replaceMultipleEntriesInOrdered(orderedText: OrderedText, replacements: Object2ObjectLinkedOpenHashMap<String, Text>): OrderedText {
+    fun replaceMultipleEntriesInOrdered(orderedText: FormattedCharSequence, replacements: Object2ObjectLinkedOpenHashMap<String, Component>): FormattedCharSequence {
         if (replacements.isEmpty())
             return orderedText
 
@@ -239,7 +207,7 @@ object Utils {
         if (contentLength == 0)
             return orderedText
 
-        data class ReplacementEntry(val target: String, val replacement: Text, val targetLen: Int)
+        data class ReplacementEntry(val target: String, val replacement: Component, val targetLen: Int)
 
         val entries = ArrayList<ReplacementEntry>(replacements.size)
         var hasAnyMatch = false
@@ -261,7 +229,7 @@ object Utils {
             styleMap[styles[i].first] = styles[i].second
         }
 
-        val result = Text.empty() as MutableText
+        val result = Component.empty() as MutableComponent
         var idx = 0
 
         while (idx < contentLength) {
@@ -280,12 +248,31 @@ object Utils {
 
             if (!found) {
                 val style = styleMap[idx] ?: Style.EMPTY
-                result.append(Text.literal(String(Character.toChars(content.codePointAt(idx)))).setStyle(style))
+                result.append(Component.literal(String(Character.toChars(content.codePointAt(idx)))).setStyle(style))
                 idx++
             }
         }
 
-        return result.asOrderedText()
+        return result.visualOrderText
+    }
+
+    fun Component.toLegacyString(): String {
+        val sb = StringBuilder()
+        this.visit({ style, text ->
+            style.color?.let { color ->
+                ChatFormatting.entries.firstOrNull {
+                    it.color == color.value
+                }?.let { sb.append('§').append(it.char) }
+            }
+            if (style.isBold) sb.append("§l")
+            if (style.isItalic) sb.append("§o")
+            if (style.isUnderlined) sb.append("§n")
+            if (style.isStrikethrough) sb.append("§m")
+            if (style.isObfuscated) sb.append("§k")
+            sb.append(text)
+            Optional.empty<Unit>()
+        }, Style.EMPTY)
+        return sb.toString()
     }
 
     fun getFormattedDate(): String {
@@ -349,32 +336,4 @@ object Utils {
             onError = onError
         )
     }
-
-    fun Number.formatNumber(): String {
-        return "%,.0f".format(Locale.US, this.toDouble())
-    }
-
-    fun Number.abbreviateNumber(): String {
-        val num = this.toDouble().absoluteValue
-        val sign = if (this.toDouble() < 0) "-" else ""
-
-        val (divisor, suffix) = when {
-            num >= 1_000_000_000_000 -> 1_000_000_000_000.0 to "T"
-            num >= 1_000_000_000 -> 1_000_000_000.0 to "B"
-            num >= 1_000_000 -> 1_000_000.0 to "M"
-            num >= 1_000 -> 1_000.0 to "k"
-            else -> return sign + "%.0f".format(Locale.US, num)
-        }
-
-        val value = num / divisor
-        val formatted = if (value % 1.0 == 0.0) {
-            value.toInt().toString()
-        } else {
-            val decimal = "%.1f".format(Locale.US, value)
-            if (decimal.endsWith(".0")) decimal.dropLast(2) else decimal
-        }
-        return sign + formatted + suffix
-    }
-
-    val LivingEntity.baseMaxHealth: Int get() = this.getAttributeBaseValue(EntityAttributes.MAX_HEALTH).toInt()
 }
